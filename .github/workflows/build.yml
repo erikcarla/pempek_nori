@@ -25,6 +25,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
@@ -36,6 +39,14 @@ jobs:
 
       - name: Build Release APK
         run: ./gradlew assembleRelease
+
+      - name: List APK files
+        run: |
+          echo "=== Debug APK files ==="
+          ls -lah app/build/outputs/apk/debug/ || echo "Debug directory not found"
+          echo ""
+          echo "=== Release APK files ==="
+          ls -lah app/build/outputs/apk/release/ || echo "Release directory not found"
 
       - name: Sign Release APK
         if: github.event_name != 'pull_request'
@@ -57,6 +68,7 @@ jobs:
           name: LokalPOS-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
+          if-no-files-found: error
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
@@ -64,6 +76,7 @@ jobs:
           name: LokalPOS-release
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
+          if-no-files-found: error
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
