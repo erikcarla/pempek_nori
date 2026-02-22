@@ -33,10 +33,22 @@ android {
         jvmTarget = "17"
     }
 
+    signingConfigs {
+        create("release") {
+            // Menggunakan debug keystore untuk signing (tidak perlu keystore khusus)
+            // Ini membuat APK bisa diinstall di device tanpa error "paket tidak valid"
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

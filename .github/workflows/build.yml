@@ -34,6 +34,16 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Create debug keystore if not exists
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v -keystore ~/.android/debug.keystore \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
@@ -60,10 +70,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LokalPOS-release
-          path: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
 
