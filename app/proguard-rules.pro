@@ -1,0 +1,6 @@
+-keep class com.lokalpos.app.data.entity.** { *; }
+-keepclassmembers class com.lokalpos.app.data.entity.** { *; }
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep @androidx.room.Dao class *
+-dontwarn java.lang.invoke.StringConcatFactory

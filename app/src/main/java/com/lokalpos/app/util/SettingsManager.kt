@@ -1,0 +1,79 @@
+package com.lokalpos.app.util
+
+import android.content.Context
+import android.content.SharedPreferences
+
+class SettingsManager(context: Context) {
+
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("lokalpos_settings", Context.MODE_PRIVATE)
+
+    var storeName: String
+        get() = prefs.getString("store_name", "Toko Saya") ?: "Toko Saya"
+        set(value) = prefs.edit().putString("store_name", value).apply()
+
+    var storeAddress: String
+        get() = prefs.getString("store_address", "") ?: ""
+        set(value) = prefs.edit().putString("store_address", value).apply()
+
+    var storePhone: String
+        get() = prefs.getString("store_phone", "") ?: ""
+        set(value) = prefs.edit().putString("store_phone", value).apply()
+
+    var receiptHeader: String
+        get() = prefs.getString("receipt_header", "") ?: ""
+        set(value) = prefs.edit().putString("receipt_header", value).apply()
+
+    var receiptFooter: String
+        get() = prefs.getString("receipt_footer", "Terima Kasih!\nSelamat Datang Kembali") ?: "Terima Kasih!\nSelamat Datang Kembali"
+        set(value) = prefs.edit().putString("receipt_footer", value).apply()
+
+    var taxEnabled: Boolean
+        get() = prefs.getBoolean("tax_enabled", false)
+        set(value) = prefs.edit().putBoolean("tax_enabled", value).apply()
+
+    var taxPercent: Double
+        get() = prefs.getFloat("tax_percent", 11f).toDouble()
+        set(value) = prefs.edit().putFloat("tax_percent", value.toFloat()).apply()
+
+    var autoDeleteDays: Int
+        get() = prefs.getInt("auto_delete_days", 30)
+        set(value) = prefs.edit().putInt("auto_delete_days", value).apply()
+
+    var currencySymbol: String
+        get() = prefs.getString("currency_symbol", "Rp") ?: "Rp"
+        set(value) = prefs.edit().putString("currency_symbol", value).apply()
+
+    var printerConnectionType: String
+        get() = prefs.getString("printer_connection", "USB") ?: "USB"
+        set(value) = prefs.edit().putString("printer_connection", value).apply()
+
+    var printerEnabled: Boolean
+        get() = prefs.getBoolean("printer_enabled", false)
+        set(value) = prefs.edit().putBoolean("printer_enabled", value).apply()
+
+    var receiptWidth: Int
+        get() = prefs.getInt("receipt_width", 42)
+        set(value) = prefs.edit().putInt("receipt_width", value).apply()
+
+    var loyaltyEnabled: Boolean
+        get() = prefs.getBoolean("loyalty_enabled", false)
+        set(value) = prefs.edit().putBoolean("loyalty_enabled", value).apply()
+
+    var loyaltyPointsPerAmount: Int
+        get() = prefs.getInt("loyalty_points_per_amount", 10000)
+        set(value) = prefs.edit().putInt("loyalty_points_per_amount", value).apply()
+
+    var paymentMethods: Set<String>
+        get() = prefs.getStringSet("payment_methods", setOf("Tunai", "Kartu Debit", "Kartu Kredit", "QRIS", "Transfer Bank")) ?: setOf("Tunai")
+        set(value) = prefs.edit().putStringSet("payment_methods", value).apply()
+
+    fun formatCurrency(amount: Double): String {
+        val formatted = if (amount == amount.toLong().toDouble()) {
+            "%,.0f".format(amount)
+        } else {
+            "%,.2f".format(amount)
+        }
+        return "$currencySymbol $formatted"
+    }
+}
