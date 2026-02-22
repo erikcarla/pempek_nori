@@ -48,20 +48,6 @@ jobs:
           echo "=== Release APK files ==="
           ls -lah app/build/outputs/apk/release/ || echo "Release directory not found"
 
-      - name: Sign Release APK
-        if: github.event_name != 'pull_request'
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "34.0.0"
-        continue-on-error: true
-
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -74,7 +60,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LokalPOS-release
-          path: app/build/outputs/apk/release/*.apk
+          path: |
+            app/build/outputs/apk/release/app-release-unsigned.apk
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: error
 
