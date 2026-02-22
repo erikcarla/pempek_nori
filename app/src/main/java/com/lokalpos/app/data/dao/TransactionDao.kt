@@ -23,6 +23,13 @@ data class CategorySales(
     val count: Int
 )
 
+data class AggregatedSalesItem(
+    val productName: String,
+    val totalQty: Int,
+    val unitPrice: Double,
+    val totalAmount: Double
+)
+
 @Dao
 interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY createdAt DESC")
@@ -92,4 +99,18 @@ interface TransactionDao {
 
     @Query("SELECT MAX(CAST(REPLACE(receiptNumber, 'TRX-', '') AS INTEGER)) FROM transactions")
     suspend fun getMaxReceiptNumber(): Int?
+
+    @Query("""
+        SELECT 
+            ti.productName,
+            SUM(ti.quantity) as totalQty,
+            ti.unitPrice,
+            SUM(ti.subtotal) as totalAmount
+        FROM transaction_items ti
+        JOIN transactions t ON ti.transactionId = t.id
+        WHERE t.status = 'completed' AND t.createdAt >= :startTime AND t.createdAt <= :endTime
+        GROUP BY ti.productName, ti.unitPrice
+        ORDER BY totalQty DESC
+    """)
+    suspend fun getAggregatedSalesItems(startTime: Long, endTime: Long): List<AggregatedSalesItem>
 }

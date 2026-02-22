@@ -26,7 +26,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 fun ProductsScreen(
     onAddProduct: () -> Unit,
     onEditProduct: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenDrawer: () -> Unit,
     viewModel: ProductsViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -61,18 +61,21 @@ fun ProductsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Produk") },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Filled.Menu, "Menu")
+                    }
+                },
                 actions = {
                     IconButton(onClick = { viewModel.showCategoryDialog() }) {
                         Icon(Icons.Filled.Category, "Kategori")
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, "Pengaturan")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },

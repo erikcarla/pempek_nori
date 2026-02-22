@@ -1,6 +1,7 @@
 package com.lokalpos.app.data.repository
 
 import com.lokalpos.app.data.dao.TransactionDao
+import com.lokalpos.app.data.dao.AggregatedSalesItem
 import com.lokalpos.app.data.dao.DailySales
 import com.lokalpos.app.data.dao.PaymentMethodSummary
 import com.lokalpos.app.data.entity.Transaction
@@ -46,4 +47,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     suspend fun getPaymentMethodSummary(startTime: Long, endTime: Long): List<PaymentMethodSummary> =
         transactionDao.getPaymentMethodSummary(startTime, endTime)
+
+    suspend fun getAggregatedSalesItems(startTime: Long, endTime: Long): List<AggregatedSalesItem> =
+        transactionDao.getAggregatedSalesItems(startTime, endTime)
 }

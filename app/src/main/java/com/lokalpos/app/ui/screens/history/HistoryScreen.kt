@@ -23,7 +23,10 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
+fun HistoryScreen(
+    onOpenDrawer: () -> Unit,
+    viewModel: HistoryViewModel = viewModel()
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val settings = viewModel.settings
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID")) }
@@ -44,9 +47,15 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
         topBar = {
             TopAppBar(
                 title = { Text("Riwayat Transaksi") },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Filled.Menu, "Menu")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
@@ -56,7 +65,6 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Date filter chips
             LazyRow(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -88,42 +96,6 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
                         onClick = { viewModel.filterAll() },
                         label = { Text("Semua") }
                     )
-                }
-            }
-
-            // Summary
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "${state.transactions.size}",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text("Transaksi", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            settings.formatCurrency(
-                                state.transactions.filter { it.status == "completed" }.sumOf { it.totalAmount }
-                            ),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = SuccessGreen
-                        )
-                        Text("Total Penjualan", style = MaterialTheme.typography.bodySmall)
-                    }
                 }
             }
 
@@ -174,13 +146,6 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    if (!transaction.customerName.isNullOrBlank()) {
-                                        Text(
-                                            transaction.customerName,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
@@ -253,9 +218,6 @@ private fun TransactionDetailDialog(
         text = {
             Column(modifier = Modifier.heightIn(max = 400.dp)) {
                 Text(dateFormat.format(Date(transaction.createdAt)))
-                if (!transaction.customerName.isNullOrBlank()) {
-                    Text("Pelanggan: ${transaction.customerName}")
-                }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 items.forEach { item ->
@@ -281,15 +243,9 @@ private fun TransactionDetailDialog(
                     Text("Subtotal")
                     Text(settings.formatCurrency(transaction.subtotal))
                 }
-                if (transaction.discountAmount > 0) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Diskon")
-                        Text("-${settings.formatCurrency(transaction.discountAmount)}")
-                    }
-                }
                 if (transaction.taxAmount > 0) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Pajak")
+                        Text("PB1")
                         Text(settings.formatCurrency(transaction.taxAmount))
                     }
                 }

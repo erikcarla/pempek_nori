@@ -12,11 +12,16 @@ import kotlinx.coroutines.launch
 data class CartItem(
     val product: Product,
     val quantity: Int = 1,
-    val discount: Double = 0.0,
     val notes: String = ""
 ) {
-    val subtotal: Double get() = (product.price * quantity) - discount
+    val subtotal: Double get() = product.price * quantity
 }
+
+data class OpenTicket(
+    val tableName: String,
+    val cart: List<CartItem>,
+    val createdAt: Long = System.currentTimeMillis()
+)
 
 data class PosUiState(
     val products: List<Product> = emptyList(),
@@ -24,10 +29,6 @@ data class PosUiState(
     val cart: List<CartItem> = emptyList(),
     val selectedCategoryId: Long? = null,
     val searchQuery: String = "",
-    val customers: List<Customer> = emptyList(),
-    val selectedCustomer: Customer? = null,
-    val discountPercent: Double = 0.0,
-    val discountAmount: Double = 0.0,
     val showCheckout: Boolean = false,
     val paymentMethod: String = "Tunai",
     val amountPaid: String = "",
@@ -35,15 +36,31 @@ data class PosUiState(
     val completedTransaction: Transaction? = null,
     val completedItems: List<TransactionItem> = emptyList(),
     val showSuccess: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val taxEnabled: Boolean = false,
+    val taxPercent: Double = 0.0,
+    val taxInclusive: Boolean = true,
+    val openTickets: Map<String, OpenTicket> = emptyMap(),
+    val currentTicketName: String? = null,
+    val showTicketDialog: Boolean = false,
+    val showTicketList: Boolean = false
 ) {
     val subtotal: Double get() = cart.sumOf { it.subtotal }
-    val discountTotal: Double get() {
-        return if (discountPercent > 0) subtotal * discountPercent / 100.0 else discountAmount
+    val taxAmount: Double get() {
+        if (!taxEnabled || taxPercent <= 0) return 0.0
+        return if (taxInclusive) {
+            subtotal * taxPercent / (100 + taxPercent)
+        } else {
+            subtotal * taxPercent / 100.0
+        }
     }
-    val taxPercent: Double get() = 0.0
-    val taxAmount: Double get() = 0.0
-    val total: Double get() = subtotal - discountTotal + taxAmount
+    val total: Double get() {
+        return if (taxInclusive || !taxEnabled) {
+            subtotal
+        } else {
+            subtotal + taxAmount
+        }
+    }
     val changeAmount: Double get() {
         val paid = amountPaid.toDoubleOrNull() ?: 0.0
         return if (paid > total) paid - total else 0.0
@@ -63,7 +80,6 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as LokalPosApp
     private val productRepo = app.productRepository
     private val transactionRepo = app.transactionRepository
-    private val customerRepo = app.customerRepository
     val settings = app.settingsManager
     private val printer = EpsonPrinter(application)
 
@@ -85,21 +101,16 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { it.copy(products = products) }
             }
         }
-        viewModelScope.launch {
-            customerRepo.getAllCustomers().collect { customers ->
-                _uiState.update { it.copy(customers = customers) }
-            }
-        }
+        refreshTaxSettings()
+    }
 
+    fun refreshTaxSettings() {
         _uiState.update {
             it.copy(
-                discountPercent = 0.0,
-                discountAmount = 0.0
+                taxEnabled = settings.taxEnabled,
+                taxPercent = settings.taxPercent,
+                taxInclusive = settings.taxInclusive
             )
-        }
-
-        if (settings.taxEnabled) {
-            // Tax is handled via settings
         }
     }
 
@@ -147,17 +158,6 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addByBarcode(barcode: String) {
-        viewModelScope.launch {
-            val product = productRepo.getProductByBarcode(barcode)
-            if (product != null) {
-                addToCart(product)
-            } else {
-                _uiState.update { it.copy(errorMessage = "Produk dengan barcode '$barcode' tidak ditemukan") }
-            }
-        }
-    }
-
     fun updateCartQuantity(productId: Long, quantity: Int) {
         _uiState.update { state ->
             if (quantity <= 0) {
@@ -178,27 +178,26 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearCart() {
-        _uiState.update { it.copy(
-            cart = emptyList(),
-            selectedCustomer = null,
-            discountPercent = 0.0,
-            discountAmount = 0.0,
-            showCheckout = false,
-            amountPaid = "",
-            paymentMethod = "Tunai"
-        ) }
-    }
-
-    fun setDiscount(percent: Double = 0.0, amount: Double = 0.0) {
-        _uiState.update { it.copy(discountPercent = percent, discountAmount = amount) }
-    }
-
-    fun selectCustomer(customer: Customer?) {
-        _uiState.update { it.copy(selectedCustomer = customer) }
+        _uiState.update {
+            it.copy(
+                cart = emptyList(),
+                showCheckout = false,
+                amountPaid = "",
+                paymentMethod = "Tunai",
+                currentTicketName = null
+            )
+        }
     }
 
     fun setPaymentMethod(method: String) {
-        _uiState.update { it.copy(paymentMethod = method) }
+        _uiState.update { state ->
+            val newState = state.copy(paymentMethod = method)
+            if (method == "Tunai") {
+                newState.copy(amountPaid = "%,.0f".format(state.total).replace(",", ""))
+            } else {
+                newState.copy(amountPaid = "")
+            }
+        }
     }
 
     fun setAmountPaid(amount: String) {
@@ -206,7 +205,17 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleCheckout() {
-        _uiState.update { it.copy(showCheckout = !it.showCheckout) }
+        _uiState.update { state ->
+            val entering = !state.showCheckout
+            if (entering && state.paymentMethod == "Tunai") {
+                state.copy(
+                    showCheckout = true,
+                    amountPaid = "%,.0f".format(state.total).replace(",", "")
+                )
+            } else {
+                state.copy(showCheckout = !state.showCheckout)
+            }
+        }
     }
 
     fun processPayment() {
@@ -220,8 +229,14 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 val receiptNumber = transactionRepo.generateReceiptNumber()
 
                 val taxPct = if (settings.taxEnabled) settings.taxPercent else 0.0
-                val taxAmt = if (taxPct > 0) state.subtotal * taxPct / 100.0 else 0.0
-                val totalWithTax = state.subtotal - state.discountTotal + taxAmt
+                val taxAmt = if (taxPct > 0) {
+                    if (settings.taxInclusive) {
+                        state.subtotal * taxPct / (100 + taxPct)
+                    } else {
+                        state.subtotal * taxPct / 100.0
+                    }
+                } else 0.0
+                val totalWithTax = if (settings.taxInclusive) state.subtotal else state.subtotal + taxAmt
 
                 val paidAmount = if (state.paymentMethod == "Tunai") {
                     state.amountPaid.toDoubleOrNull() ?: totalWithTax
@@ -231,11 +246,9 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
                 val transaction = Transaction(
                     receiptNumber = receiptNumber,
-                    customerId = state.selectedCustomer?.id,
-                    customerName = state.selectedCustomer?.name,
                     subtotal = state.subtotal,
-                    discountAmount = state.discountTotal,
-                    discountPercent = state.discountPercent,
+                    discountAmount = 0.0,
+                    discountPercent = 0.0,
                     taxAmount = taxAmt,
                     taxPercent = taxPct,
                     totalAmount = totalWithTax,
@@ -251,7 +264,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         productName = cartItem.product.name,
                         quantity = cartItem.quantity,
                         unitPrice = cartItem.product.price,
-                        discount = cartItem.discount,
+                        discount = 0.0,
                         subtotal = cartItem.subtotal,
                         notes = cartItem.notes
                     )
@@ -259,37 +272,40 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
                 val txId = transactionRepo.createTransaction(transaction, items)
 
-                // Update stock
                 for (cartItem in state.cart) {
                     if (cartItem.product.trackStock) {
                         productRepo.decreaseStock(cartItem.product.id, cartItem.quantity)
                     }
                 }
 
-                // Update customer loyalty
-                state.selectedCustomer?.let { customer ->
-                    val points = if (settings.loyaltyEnabled) {
-                        (totalWithTax / settings.loyaltyPointsPerAmount).toInt()
-                    } else 0
-                    customerRepo.addPurchase(customer.id, totalWithTax, points)
-                }
-
                 val savedTx = transactionRepo.getTransactionById(txId) ?: transaction.copy(id = txId)
                 val savedItems = transactionRepo.getTransactionItems(txId)
 
-                _uiState.update { it.copy(
-                    isProcessing = false,
-                    completedTransaction = savedTx,
-                    completedItems = savedItems,
-                    showSuccess = true,
-                    showCheckout = false
-                ) }
+                val ticketName = state.currentTicketName
+                val updatedTickets = if (ticketName != null) {
+                    state.openTickets - ticketName
+                } else {
+                    state.openTickets
+                }
+
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        completedTransaction = savedTx,
+                        completedItems = savedItems,
+                        showSuccess = true,
+                        showCheckout = false,
+                        openTickets = updatedTickets
+                    )
+                }
 
             } catch (e: Exception) {
-                _uiState.update { it.copy(
-                    isProcessing = false,
-                    errorMessage = "Gagal memproses: ${e.message}"
-                ) }
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        errorMessage = "Gagal memproses: ${e.message}"
+                    )
+                }
             }
         }
     }
@@ -308,20 +324,90 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun dismissSuccess() {
-        _uiState.update { it.copy(
-            showSuccess = false,
-            completedTransaction = null,
-            completedItems = emptyList(),
-            cart = emptyList(),
-            selectedCustomer = null,
-            discountPercent = 0.0,
-            discountAmount = 0.0,
-            amountPaid = "",
-            paymentMethod = "Tunai"
-        ) }
+        _uiState.update {
+            it.copy(
+                showSuccess = false,
+                completedTransaction = null,
+                completedItems = emptyList(),
+                cart = emptyList(),
+                amountPaid = "",
+                paymentMethod = "Tunai",
+                currentTicketName = null
+            )
+        }
     }
 
     fun dismissError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    // --- Ticket / Table Management ---
+
+    fun showTicketDialog() {
+        _uiState.update { it.copy(showTicketDialog = true) }
+    }
+
+    fun hideTicketDialog() {
+        _uiState.update { it.copy(showTicketDialog = false) }
+    }
+
+    fun showTicketList() {
+        _uiState.update { it.copy(showTicketList = true) }
+    }
+
+    fun hideTicketList() {
+        _uiState.update { it.copy(showTicketList = false) }
+    }
+
+    fun saveTicket(tableName: String) {
+        val state = _uiState.value
+        if (state.cart.isEmpty() || tableName.isBlank()) return
+
+        val ticket = OpenTicket(
+            tableName = tableName,
+            cart = state.cart
+        )
+        _uiState.update {
+            it.copy(
+                openTickets = it.openTickets + (tableName to ticket),
+                cart = emptyList(),
+                currentTicketName = null,
+                showTicketDialog = false,
+                showCheckout = false,
+                amountPaid = ""
+            )
+        }
+    }
+
+    fun loadTicket(tableName: String) {
+        val state = _uiState.value
+        val ticket = state.openTickets[tableName] ?: return
+
+        var updatedTickets = state.openTickets - tableName
+
+        if (state.cart.isNotEmpty() && state.currentTicketName != null) {
+            val currentTicket = OpenTicket(
+                tableName = state.currentTicketName,
+                cart = state.cart
+            )
+            updatedTickets = updatedTickets + (state.currentTicketName to currentTicket)
+        }
+
+        _uiState.update {
+            it.copy(
+                openTickets = updatedTickets,
+                cart = ticket.cart,
+                currentTicketName = tableName,
+                showTicketList = false,
+                showCheckout = false,
+                amountPaid = ""
+            )
+        }
+    }
+
+    fun deleteTicket(tableName: String) {
+        _uiState.update {
+            it.copy(openTickets = it.openTickets - tableName)
+        }
     }
 }

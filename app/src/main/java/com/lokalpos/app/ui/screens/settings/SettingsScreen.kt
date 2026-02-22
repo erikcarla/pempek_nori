@@ -18,7 +18,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lokalpos.app.LokalPosApp
 import com.lokalpos.app.printer.EpsonPrinter
-import com.lokalpos.app.util.SettingsManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,12 +35,13 @@ fun SettingsScreen(onBack: () -> Unit) {
     var receiptFooter by remember { mutableStateOf(settings.receiptFooter) }
     var taxEnabled by remember { mutableStateOf(settings.taxEnabled) }
     var taxPercent by remember { mutableStateOf(settings.taxPercent.toString()) }
+    var taxInclusive by remember { mutableStateOf(settings.taxInclusive) }
     var autoDeleteDays by remember { mutableStateOf(settings.autoDeleteDays.toString()) }
     var currencySymbol by remember { mutableStateOf(settings.currencySymbol) }
     var printerEnabled by remember { mutableStateOf(settings.printerEnabled) }
     var receiptWidth by remember { mutableStateOf(settings.receiptWidth.toString()) }
-    var loyaltyEnabled by remember { mutableStateOf(settings.loyaltyEnabled) }
-    var loyaltyPointsPerAmount by remember { mutableStateOf(settings.loyaltyPointsPerAmount.toString()) }
+    var emailReportEnabled by remember { mutableStateOf(settings.emailReportEnabled) }
+    var emailReportAddress by remember { mutableStateOf(settings.emailReportAddress) }
 
     fun save() {
         settings.storeName = storeName
@@ -50,13 +50,14 @@ fun SettingsScreen(onBack: () -> Unit) {
         settings.receiptHeader = receiptHeader
         settings.receiptFooter = receiptFooter
         settings.taxEnabled = taxEnabled
-        settings.taxPercent = taxPercent.toDoubleOrNull() ?: 11.0
+        settings.taxPercent = taxPercent.toDoubleOrNull() ?: 10.0
+        settings.taxInclusive = taxInclusive
         settings.autoDeleteDays = autoDeleteDays.toIntOrNull() ?: 30
         settings.currencySymbol = currencySymbol
         settings.printerEnabled = printerEnabled
         settings.receiptWidth = receiptWidth.toIntOrNull() ?: 42
-        settings.loyaltyEnabled = loyaltyEnabled
-        settings.loyaltyPointsPerAmount = loyaltyPointsPerAmount.toIntOrNull() ?: 10000
+        settings.emailReportEnabled = emailReportEnabled
+        settings.emailReportAddress = emailReportAddress
         Toast.makeText(context, "Pengaturan disimpan", Toast.LENGTH_SHORT).show()
     }
 
@@ -85,7 +86,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Store Info Section
             SectionHeader("Informasi Toko", Icons.Filled.Store)
             OutlinedTextField(
                 value = storeName,
@@ -114,7 +114,6 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             HorizontalDivider()
 
-            // Receipt Section
             SectionHeader("Struk / Receipt", Icons.Filled.Receipt)
             OutlinedTextField(
                 value = receiptHeader,
@@ -137,7 +136,6 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             HorizontalDivider()
 
-            // Printer Section
             SectionHeader("Printer", Icons.Filled.Print)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -189,14 +187,13 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             HorizontalDivider()
 
-            // Tax Section
-            SectionHeader("Pajak", Icons.Filled.AccountBalance)
+            SectionHeader("Pajak (PB1)", Icons.Filled.AccountBalance)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Aktifkan Pajak", style = MaterialTheme.typography.bodyLarge)
+                Text("Aktifkan Pajak PB1", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = taxEnabled, onCheckedChange = { taxEnabled = it })
             }
             if (taxEnabled) {
@@ -204,34 +201,61 @@ fun SettingsScreen(onBack: () -> Unit) {
                     value = taxPercent,
                     onValueChange = { taxPercent = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Persentase Pajak") },
+                    label = { Text("Persentase PB1") },
                     suffix = { Text("%") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp)
                 )
+
+                Text("Tipe Pajak", style = MaterialTheme.typography.bodyLarge)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FilterChip(
+                        selected = taxInclusive,
+                        onClick = { taxInclusive = true },
+                        label = { Text("Inclusive") }
+                    )
+                    FilterChip(
+                        selected = !taxInclusive,
+                        onClick = { taxInclusive = false },
+                        label = { Text("Exclusive") }
+                    )
+                }
+                Text(
+                    if (taxInclusive) "Harga produk sudah termasuk pajak"
+                    else "Pajak ditambahkan di atas harga produk",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             HorizontalDivider()
 
-            // Loyalty Section
-            SectionHeader("Loyalti Pelanggan", Icons.Filled.CardGiftcard)
+            SectionHeader("Email Laporan", Icons.Filled.Email)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Aktifkan Program Loyalti", style = MaterialTheme.typography.bodyLarge)
-                Switch(checked = loyaltyEnabled, onCheckedChange = { loyaltyEnabled = it })
+                Column {
+                    Text("Kirim Laporan Harian", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Kirim ringkasan penjualan via email",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = emailReportEnabled, onCheckedChange = { emailReportEnabled = it })
             }
-            if (loyaltyEnabled) {
+            if (emailReportEnabled) {
                 OutlinedTextField(
-                    value = loyaltyPointsPerAmount,
-                    onValueChange = { loyaltyPointsPerAmount = it },
+                    value = emailReportAddress,
+                    onValueChange = { emailReportAddress = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("1 poin per berapa Rupiah") },
-                    prefix = { Text("Rp ") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    label = { Text("Email Tujuan") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -239,7 +263,6 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             HorizontalDivider()
 
-            // Data Management
             SectionHeader("Manajemen Data", Icons.Filled.Storage)
             OutlinedTextField(
                 value = autoDeleteDays,
@@ -249,7 +272,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
-                supportingText = { Text("Transaksi lebih lama dari ini akan otomatis dihapus. Set 0 untuk menonaktifkan.") }
+                supportingText = { Text("Set 0 untuk menonaktifkan") }
             )
             OutlinedTextField(
                 value = currencySymbol,
@@ -262,7 +285,6 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Save button
             Button(
                 onClick = { save() },
                 modifier = Modifier

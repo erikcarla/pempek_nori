@@ -1,6 +1,5 @@
 package com.lokalpos.app.ui.screens.pos
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,8 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -26,23 +23,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import com.lokalpos.app.ui.theme.SuccessGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PosScreen(
-    navController: NavController,
+    onOpenDrawer: () -> Unit,
     viewModel: PosViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val settings = viewModel.settings
-    var showBarcodeInput by remember { mutableStateOf(false) }
-    var barcodeText by remember { mutableStateOf("") }
-    var showDiscountDialog by remember { mutableStateOf(false) }
-    var showCustomerPicker by remember { mutableStateOf(false) }
 
-    // Error snackbar
     state.errorMessage?.let { error ->
         LaunchedEffect(error) {
             viewModel.dismissError()
@@ -58,65 +49,62 @@ fun PosScreen(
         )
     }
 
-    if (showDiscountDialog) {
-        DiscountDialog(
-            currentPercent = state.discountPercent,
-            currentAmount = state.discountAmount,
-            onApply = { pct, amt -> viewModel.setDiscount(pct, amt); showDiscountDialog = false },
-            onDismiss = { showDiscountDialog = false }
+    if (state.showTicketDialog) {
+        SaveTicketDialog(
+            currentTicketName = state.currentTicketName,
+            onSave = { viewModel.saveTicket(it) },
+            onDismiss = { viewModel.hideTicketDialog() }
         )
     }
 
-    if (showCustomerPicker) {
-        CustomerPickerDialog(
-            customers = state.customers,
-            onSelect = { viewModel.selectCustomer(it); showCustomerPicker = false },
-            onDismiss = { showCustomerPicker = false }
+    if (state.showTicketList) {
+        TicketListDialog(
+            tickets = state.openTickets,
+            settings = settings,
+            onLoad = { viewModel.loadTicket(it) },
+            onDelete = { viewModel.deleteTicket(it) },
+            onDismiss = { viewModel.hideTicketList() }
         )
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top bar
         TopAppBar(
-            title = { Text("Kasir") },
-            actions = {
-                IconButton(onClick = { showBarcodeInput = !showBarcodeInput }) {
-                    Icon(Icons.Filled.QrCodeScanner, "Scan Barcode")
+            title = {
+                if (state.currentTicketName != null) {
+                    Text("Kasir - ${state.currentTicketName}")
+                } else {
+                    Text("Kasir")
                 }
-                IconButton(onClick = { navController.navigate("settings") }) {
-                    Icon(Icons.Filled.Settings, "Pengaturan")
+            },
+            navigationIcon = {
+                IconButton(onClick = onOpenDrawer) {
+                    Icon(Icons.Filled.Menu, "Menu")
+                }
+            },
+            actions = {
+                if (state.openTickets.isNotEmpty()) {
+                    BadgedBox(
+                        badge = {
+                            Badge { Text("${state.openTickets.size}") }
+                        }
+                    ) {
+                        IconButton(onClick = { viewModel.showTicketList() }) {
+                            Icon(Icons.Filled.TableBar, "Open Tickets")
+                        }
+                    }
+                } else {
+                    IconButton(onClick = { viewModel.showTicketList() }) {
+                        Icon(Icons.Filled.TableBar, "Open Tickets")
+                    }
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.primary,
                 titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
             )
         )
-
-        // Barcode input
-        AnimatedVisibility(visible = showBarcodeInput) {
-            OutlinedTextField(
-                value = barcodeText,
-                onValueChange = { barcodeText = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                label = { Text("Scan / Ketik Barcode") },
-                trailingIcon = {
-                    IconButton(onClick = {
-                        if (barcodeText.isNotBlank()) {
-                            viewModel.addByBarcode(barcodeText.trim())
-                            barcodeText = ""
-                        }
-                    }) {
-                        Icon(Icons.Filled.Search, "Cari")
-                    }
-                },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
-            )
-        }
 
         // Category chips
         LazyRow(
@@ -163,7 +151,6 @@ fun PosScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Product grid + Cart
         if (state.showCheckout) {
             CheckoutView(
                 state = state,
@@ -171,11 +158,12 @@ fun PosScreen(
                 onBack = { viewModel.toggleCheckout() },
                 onPaymentMethodChange = { viewModel.setPaymentMethod(it) },
                 onAmountPaidChange = { viewModel.setAmountPaid(it) },
-                onPay = { viewModel.processPayment() }
+                onPay = { viewModel.processPayment() },
+                onUpdateQuantity = { id, qty -> viewModel.updateCartQuantity(id, qty) },
+                onRemoveItem = { viewModel.removeFromCart(it) }
             )
         } else {
             Column(modifier = Modifier.weight(1f)) {
-                // Product grid
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 110.dp),
                     modifier = Modifier.weight(1f),
@@ -192,14 +180,12 @@ fun PosScreen(
                     }
                 }
 
-                // Cart summary bar
                 if (state.cart.isNotEmpty()) {
                     CartSummaryBar(
                         state = state,
                         settings = settings,
                         onShowCart = { viewModel.toggleCheckout() },
-                        onShowDiscount = { showDiscountDialog = true },
-                        onShowCustomer = { showCustomerPicker = true },
+                        onSaveTicket = { viewModel.showTicketDialog() },
                         onClear = { viewModel.clearCart() }
                     )
                 }
@@ -267,8 +253,7 @@ private fun CartSummaryBar(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     onShowCart: () -> Unit,
-    onShowDiscount: () -> Unit,
-    onShowCustomer: () -> Unit,
+    onSaveTicket: () -> Unit,
     onClear: () -> Unit
 ) {
     Surface(
@@ -276,25 +261,15 @@ private fun CartSummaryBar(
         shadowElevation = 8.dp,
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Cart items summary
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        "${state.cartItemCount} item",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    if (state.selectedCustomer != null) {
-                        Text(
-                            state.selectedCustomer.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                Text(
+                    "${state.cartItemCount} item",
+                    style = MaterialTheme.typography.bodyMedium
+                )
                 Text(
                     settings.formatCurrency(state.total),
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
@@ -318,22 +293,13 @@ private fun CartSummaryBar(
                     Text("Hapus", fontSize = 12.sp)
                 }
                 OutlinedButton(
-                    onClick = onShowDiscount,
+                    onClick = onSaveTicket,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Icon(Icons.Filled.LocalOffer, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.TableBar, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Diskon", fontSize = 12.sp)
-                }
-                OutlinedButton(
-                    onClick = onShowCustomer,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Icon(Icons.Filled.Person, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Plgn", fontSize = 12.sp)
+                    Text("Simpan", fontSize = 12.sp)
                 }
                 Button(
                     onClick = onShowCart,
@@ -356,7 +322,9 @@ private fun CheckoutView(
     onBack: () -> Unit,
     onPaymentMethodChange: (String) -> Unit,
     onAmountPaidChange: (String) -> Unit,
-    onPay: () -> Unit
+    onPay: () -> Unit,
+    onUpdateQuantity: (Long, Int) -> Unit,
+    onRemoveItem: (Long) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -373,7 +341,6 @@ private fun CheckoutView(
             Text("Pembayaran", style = MaterialTheme.typography.titleLarge)
         }
 
-        // Cart items list
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -398,10 +365,31 @@ private fun CheckoutView(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(
-                            settings.formatCurrency(cartItem.subtotal),
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = { onUpdateQuantity(cartItem.product.id, cartItem.quantity - 1) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Filled.Remove, "Kurang", modifier = Modifier.size(16.dp))
+                            }
+                            Text(
+                                "${cartItem.quantity}",
+                                modifier = Modifier.widthIn(min = 24.dp),
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Bold
+                            )
+                            IconButton(
+                                onClick = { onUpdateQuantity(cartItem.product.id, cartItem.quantity + 1) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Filled.Add, "Tambah", modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                settings.formatCurrency(cartItem.subtotal),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -409,20 +397,15 @@ private fun CheckoutView(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        // Totals
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Subtotal")
             Text(settings.formatCurrency(state.subtotal))
         }
-        if (state.discountTotal > 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Diskon", color = SuccessGreen)
-                Text("-${settings.formatCurrency(state.discountTotal)}", color = SuccessGreen)
-            }
-        }
         if (state.taxAmount > 0) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Pajak (${state.taxPercent.toInt()}%)")
+                Text(
+                    "PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})"
+                )
                 Text(settings.formatCurrency(state.taxAmount))
             }
         }
@@ -439,7 +422,6 @@ private fun CheckoutView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Payment method
         Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -454,7 +436,6 @@ private fun CheckoutView(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Amount paid (only for cash)
         if (state.paymentMethod == "Tunai") {
             OutlinedTextField(
                 value = state.amountPaid,
@@ -473,7 +454,6 @@ private fun CheckoutView(
                     fontWeight = FontWeight.Bold
                 )
             }
-            // Quick amount buttons
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -571,107 +551,99 @@ private fun PaymentSuccessDialog(
 }
 
 @Composable
-private fun DiscountDialog(
-    currentPercent: Double,
-    currentAmount: Double,
-    onApply: (Double, Double) -> Unit,
+private fun SaveTicketDialog(
+    currentTicketName: String?,
+    onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var isPercent by remember { mutableStateOf(currentPercent > 0) }
-    var value by remember {
-        mutableStateOf(
-            if (currentPercent > 0) currentPercent.toString()
-            else if (currentAmount > 0) currentAmount.toString()
-            else ""
-        )
-    }
+    var tableName by remember { mutableStateOf(currentTicketName ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Diskon") },
+        title = { Text("Simpan ke Meja") },
         text = {
-            Column {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = isPercent,
-                        onClick = { isPercent = true },
-                        label = { Text("Persen (%)") }
-                    )
-                    FilterChip(
-                        selected = !isPercent,
-                        onClick = { isPercent = false },
-                        label = { Text("Nominal (Rp)") }
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(if (isPercent) "Persen Diskon" else "Nominal Diskon") },
-                    suffix = { Text(if (isPercent) "%" else "") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-            }
+            OutlinedTextField(
+                value = tableName,
+                onValueChange = { tableName = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Nama Meja") },
+                placeholder = { Text("cth: Meja 1, VIP, dll") },
+                singleLine = true
+            )
         },
         confirmButton = {
-            Button(onClick = {
-                val v = value.toDoubleOrNull() ?: 0.0
-                if (isPercent) onApply(v, 0.0) else onApply(0.0, v)
-            }) { Text("Terapkan") }
+            Button(
+                onClick = { if (tableName.isNotBlank()) onSave(tableName.trim()) },
+                enabled = tableName.isNotBlank()
+            ) { Text("Simpan") }
         },
         dismissButton = {
-            TextButton(onClick = {
-                onApply(0.0, 0.0)
-            }) { Text("Hapus Diskon") }
+            TextButton(onClick = onDismiss) { Text("Batal") }
         }
     )
 }
 
 @Composable
-private fun CustomerPickerDialog(
-    customers: List<com.lokalpos.app.data.entity.Customer>,
-    onSelect: (com.lokalpos.app.data.entity.Customer?) -> Unit,
+private fun TicketListDialog(
+    tickets: Map<String, OpenTicket>,
+    settings: com.lokalpos.app.util.SettingsManager,
+    onLoad: (String) -> Unit,
+    onDelete: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    val filtered = customers.filter {
-        searchQuery.isBlank() || it.name.contains(searchQuery, true) ||
-                (it.phone?.contains(searchQuery) == true)
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Pilih Pelanggan") },
+        title = { Text("Open Tickets (${tickets.size})") },
         text = {
-            Column(modifier = Modifier.heightIn(max = 400.dp)) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Cari pelanggan...") },
-                    singleLine = true
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn {
-                    items(filtered) { customer ->
-                        ListItem(
-                            headlineContent = { Text(customer.name) },
-                            supportingContent = {
-                                Text(customer.phone ?: customer.email ?: "")
-                            },
-                            modifier = Modifier.clickable { onSelect(customer) }
-                        )
+            if (tickets.isEmpty()) {
+                Text("Belum ada meja yang tersimpan")
+            } else {
+                Column(modifier = Modifier.heightIn(max = 400.dp)) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(tickets.entries.toList()) { (name, ticket) ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onLoad(name) },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(name, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "${ticket.cart.sumOf { it.quantity }} item",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text(
+                                        settings.formatCurrency(ticket.cart.sumOf { it.subtotal }),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    IconButton(onClick = { onDelete(name) }) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            "Hapus",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSelect(null) }) { Text("Tanpa Pelanggan") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Batal") }
+            TextButton(onClick = onDismiss) { Text("Tutup") }
         }
     )
 }

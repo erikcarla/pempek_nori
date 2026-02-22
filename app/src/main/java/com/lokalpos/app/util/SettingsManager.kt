@@ -33,8 +33,12 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putBoolean("tax_enabled", value).apply()
 
     var taxPercent: Double
-        get() = prefs.getFloat("tax_percent", 11f).toDouble()
+        get() = prefs.getFloat("tax_percent", 10f).toDouble()
         set(value) = prefs.edit().putFloat("tax_percent", value.toFloat()).apply()
+
+    var taxInclusive: Boolean
+        get() = prefs.getBoolean("tax_inclusive", true)
+        set(value) = prefs.edit().putBoolean("tax_inclusive", value).apply()
 
     var autoDeleteDays: Int
         get() = prefs.getInt("auto_delete_days", 30)
@@ -56,13 +60,13 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("receipt_width", 42)
         set(value) = prefs.edit().putInt("receipt_width", value).apply()
 
-    var loyaltyEnabled: Boolean
-        get() = prefs.getBoolean("loyalty_enabled", false)
-        set(value) = prefs.edit().putBoolean("loyalty_enabled", value).apply()
+    var emailReportEnabled: Boolean
+        get() = prefs.getBoolean("email_report_enabled", false)
+        set(value) = prefs.edit().putBoolean("email_report_enabled", value).apply()
 
-    var loyaltyPointsPerAmount: Int
-        get() = prefs.getInt("loyalty_points_per_amount", 10000)
-        set(value) = prefs.edit().putInt("loyalty_points_per_amount", value).apply()
+    var emailReportAddress: String
+        get() = prefs.getString("email_report_address", "ribka.apriliana.09@gmail.com") ?: "ribka.apriliana.09@gmail.com"
+        set(value) = prefs.edit().putString("email_report_address", value).apply()
 
     var paymentMethods: Set<String>
         get() = prefs.getStringSet("payment_methods", setOf("Tunai", "Kartu Debit", "Kartu Kredit", "QRIS", "Transfer Bank")) ?: setOf("Tunai")
