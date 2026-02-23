@@ -2,11 +2,15 @@ package com.lokalpos.app
 
 import android.app.Application
 import com.lokalpos.app.data.AppDatabase
+import com.lokalpos.app.data.DatabaseSeeder
 import com.lokalpos.app.data.repository.CustomerRepository
 import com.lokalpos.app.data.repository.ProductRepository
 import com.lokalpos.app.data.repository.TransactionRepository
 import com.lokalpos.app.util.SettingsManager
 import com.lokalpos.app.worker.TransactionCleanupWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class LokalPosApp : Application() {
 
@@ -29,6 +33,10 @@ class LokalPosApp : Application() {
         transactionRepository = TransactionRepository(database.transactionDao())
         customerRepository = CustomerRepository(database.customerDao())
         settingsManager = SettingsManager(this)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            DatabaseSeeder.seedIfEmpty(database)
+        }
 
         TransactionCleanupWorker.schedule(this)
     }

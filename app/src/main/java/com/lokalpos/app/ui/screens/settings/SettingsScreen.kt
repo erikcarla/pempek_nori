@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lokalpos.app.LokalPosApp
 import com.lokalpos.app.printer.EpsonPrinter
@@ -41,7 +42,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     var printerEnabled by remember { mutableStateOf(settings.printerEnabled) }
     var receiptWidth by remember { mutableStateOf(settings.receiptWidth.toString()) }
     var emailReportEnabled by remember { mutableStateOf(settings.emailReportEnabled) }
-    var emailReportAddress by remember { mutableStateOf(settings.emailReportAddress) }
+    var emailSenderAddress by remember { mutableStateOf(settings.emailSenderAddress) }
+    var emailSenderPassword by remember { mutableStateOf(settings.emailSenderPassword) }
 
     fun save() {
         settings.storeName = storeName
@@ -57,7 +59,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         settings.printerEnabled = printerEnabled
         settings.receiptWidth = receiptWidth.toIntOrNull() ?: 42
         settings.emailReportEnabled = emailReportEnabled
-        settings.emailReportAddress = emailReportAddress
+        settings.emailSenderAddress = emailSenderAddress
+        settings.emailSenderPassword = emailSenderPassword
         Toast.makeText(context, "Pengaturan disimpan", Toast.LENGTH_SHORT).show()
     }
 
@@ -88,83 +91,57 @@ fun SettingsScreen(onBack: () -> Unit) {
         ) {
             SectionHeader("Informasi Toko", Icons.Filled.Store)
             OutlinedTextField(
-                value = storeName,
-                onValueChange = { storeName = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Nama Toko") },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                value = storeName, onValueChange = { storeName = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Nama Toko") },
+                singleLine = true, shape = RoundedCornerShape(12.dp)
             )
             OutlinedTextField(
-                value = storeAddress,
-                onValueChange = { storeAddress = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Alamat Toko") },
-                maxLines = 3,
-                shape = RoundedCornerShape(12.dp)
+                value = storeAddress, onValueChange = { storeAddress = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Alamat Toko") },
+                maxLines = 3, shape = RoundedCornerShape(12.dp)
             )
             OutlinedTextField(
-                value = storePhone,
-                onValueChange = { storePhone = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Telepon Toko") },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                value = storePhone, onValueChange = { storePhone = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Telepon Toko") },
+                singleLine = true, shape = RoundedCornerShape(12.dp)
             )
 
             HorizontalDivider()
 
             SectionHeader("Struk / Receipt", Icons.Filled.Receipt)
             OutlinedTextField(
-                value = receiptHeader,
-                onValueChange = { receiptHeader = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Header Struk (teks tambahan)") },
-                maxLines = 3,
-                shape = RoundedCornerShape(12.dp),
-                supportingText = { Text("Teks tambahan di bawah info toko") }
+                value = receiptHeader, onValueChange = { receiptHeader = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Header Struk") },
+                maxLines = 3, shape = RoundedCornerShape(12.dp)
             )
             OutlinedTextField(
-                value = receiptFooter,
-                onValueChange = { receiptFooter = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Footer Struk") },
-                maxLines = 3,
-                shape = RoundedCornerShape(12.dp),
-                supportingText = { Text("Teks di bagian bawah struk") }
+                value = receiptFooter, onValueChange = { receiptFooter = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Footer Struk") },
+                maxLines = 3, shape = RoundedCornerShape(12.dp)
             )
 
             HorizontalDivider()
 
             SectionHeader("Printer", Icons.Filled.Print)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text("Aktifkan Printer", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Epson TM-U220D (USB)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Epson TM-U220D (USB)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = printerEnabled, onCheckedChange = { printerEnabled = it })
             }
-
             if (printerEnabled) {
                 OutlinedTextField(
-                    value = receiptWidth,
-                    onValueChange = { receiptWidth = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Lebar Struk (karakter)") },
+                    value = receiptWidth, onValueChange = { receiptWidth = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Lebar Struk (karakter)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    supportingText = { Text("Default 42 untuk Font A, 56 untuk Font B") }
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    supportingText = { Text("42 untuk Font A, 56 untuk Font B") }
                 )
-
                 Button(
                     onClick = {
                         scope.launch {
@@ -173,13 +150,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                             if (device != null) {
                                 Toast.makeText(context, "Printer ditemukan: ${device.productName ?: device.deviceName}", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "Printer tidak ditemukan. Pastikan kabel USB terhubung.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Printer tidak ditemukan", Toast.LENGTH_LONG).show()
                             }
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Filled.Print, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Print, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Test Koneksi Printer")
                 }
@@ -189,44 +166,28 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             SectionHeader("Pajak (PB1)", Icons.Filled.AccountBalance)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Aktifkan Pajak PB1", style = MaterialTheme.typography.bodyLarge)
+                Text("Aktifkan PB1", style = MaterialTheme.typography.bodyLarge)
                 Switch(checked = taxEnabled, onCheckedChange = { taxEnabled = it })
             }
             if (taxEnabled) {
                 OutlinedTextField(
-                    value = taxPercent,
-                    onValueChange = { taxPercent = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Persentase PB1") },
+                    value = taxPercent, onValueChange = { taxPercent = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Persentase PB1") },
                     suffix = { Text("%") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    singleLine = true, shape = RoundedCornerShape(12.dp)
                 )
-
                 Text("Tipe Pajak", style = MaterialTheme.typography.bodyLarge)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    FilterChip(
-                        selected = taxInclusive,
-                        onClick = { taxInclusive = true },
-                        label = { Text("Inclusive") }
-                    )
-                    FilterChip(
-                        selected = !taxInclusive,
-                        onClick = { taxInclusive = false },
-                        label = { Text("Exclusive") }
-                    )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilterChip(selected = taxInclusive, onClick = { taxInclusive = true }, label = { Text("Inclusive") })
+                    FilterChip(selected = !taxInclusive, onClick = { taxInclusive = false }, label = { Text("Exclusive") })
                 }
                 Text(
-                    if (taxInclusive) "Harga produk sudah termasuk pajak"
-                    else "Pajak ditambahkan di atas harga produk",
+                    if (taxInclusive) "Harga produk sudah termasuk PB1" else "PB1 ditambahkan di atas harga produk",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -236,28 +197,29 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             SectionHeader("Email Laporan", Icons.Filled.Email)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text("Kirim Laporan Harian", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Kirim ringkasan penjualan via email",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Ke: ${settings.emailReportAddress}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = emailReportEnabled, onCheckedChange = { emailReportEnabled = it })
             }
             if (emailReportEnabled) {
                 OutlinedTextField(
-                    value = emailReportAddress,
-                    onValueChange = { emailReportAddress = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Email Tujuan") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    value = emailSenderAddress, onValueChange = { emailSenderAddress = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Email Pengirim (Gmail)") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    supportingText = { Text("Gmail account untuk mengirim laporan") }
+                )
+                OutlinedTextField(
+                    value = emailSenderPassword, onValueChange = { emailSenderPassword = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("App Password") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation(),
+                    supportingText = { Text("Buat di myaccount.google.com > Security > App Passwords") }
                 )
             }
 
@@ -265,31 +227,23 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             SectionHeader("Manajemen Data", Icons.Filled.Storage)
             OutlinedTextField(
-                value = autoDeleteDays,
-                onValueChange = { autoDeleteDays = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Hapus transaksi otomatis setelah (hari)") },
+                value = autoDeleteDays, onValueChange = { autoDeleteDays = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Hapus transaksi setelah (hari)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                singleLine = true, shape = RoundedCornerShape(12.dp),
                 supportingText = { Text("Set 0 untuk menonaktifkan") }
             )
             OutlinedTextField(
-                value = currencySymbol,
-                onValueChange = { currencySymbol = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Simbol Mata Uang") },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
+                value = currencySymbol, onValueChange = { currencySymbol = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Simbol Mata Uang") },
+                singleLine = true, shape = RoundedCornerShape(12.dp)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
 
             Button(
                 onClick = { save() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Filled.Save, null)
@@ -297,7 +251,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Simpan Pengaturan")
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
         }
     }
 }
@@ -305,18 +259,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 @Composable
 private fun SectionHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            icon,
-            null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
-        )
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(8.dp))
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }

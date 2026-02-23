@@ -1,13 +1,12 @@
 package com.lokalpos.app.ui.navigation
 
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -17,12 +16,12 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.lokalpos.app.LokalPosApp
-import com.lokalpos.app.data.dao.AggregatedSalesItem
 import com.lokalpos.app.ui.screens.history.HistoryScreen
 import com.lokalpos.app.ui.screens.pos.PosScreen
 import com.lokalpos.app.ui.screens.products.ProductEditScreen
 import com.lokalpos.app.ui.screens.products.ProductsScreen
 import com.lokalpos.app.ui.screens.settings.SettingsScreen
+import com.lokalpos.app.util.EmailSender
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -58,7 +57,69 @@ fun AppNavigation() {
     var showEmailReportDialog by remember { mutableStateOf(false) }
 
     if (showEmailReportDialog) {
-        EmailReportDialog(
+        EmailReportDatePicker(
+            onSend = { selectedDate ->
+                showEmailReportDialog = false
+                scope.launch {
+                    val settings = app.settingsManager
+                    val transactionRepo = app.transactionRepository
+
+                    val cal = Calendar.getInstance().apply { time = selectedDate }
+                    cal.set(Calendar.HOUR_OF_DAY, 0)
+                    cal.set(Calendar.MINUTE, 0)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.set(Calendar.MILLISECOND, 0)
+                    val startTime = cal.timeInMillis
+                    cal.set(Calendar.HOUR_OF_DAY, 23)
+                    cal.set(Calendar.MINUTE, 59)
+                    cal.set(Calendar.SECOND, 59)
+                    cal.set(Calendar.MILLISECOND, 999)
+                    val endTime = cal.timeInMillis
+
+                    val items = transactionRepo.getAggregatedSalesItems(startTime, endTime)
+                    val totalSales = transactionRepo.getTotalSales(startTime, endTime)
+                    val txCount = transactionRepo.getTransactionCount(startTime, endTime)
+
+                    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("id", "ID"))
+                    val dateStr = dateFormat.format(selectedDate)
+
+                    val sb = StringBuilder()
+                    sb.appendLine("Laporan Penjualan Harian")
+                    sb.appendLine("${settings.storeName} - $dateStr")
+                    sb.appendLine("================================")
+                    sb.appendLine("$txCount transaksi")
+                    sb.appendLine()
+                    items.forEach { item ->
+                        sb.appendLine("${item.productName} x${item.totalQty} = ${settings.formatCurrency(item.totalAmount)}")
+                    }
+                    sb.appendLine()
+                    sb.appendLine("================================")
+                    sb.appendLine("TOTAL: ${settings.formatCurrency(totalSales)}")
+
+                    val subject = "Laporan Penjualan ${settings.storeName} - $dateStr"
+                    val body = sb.toString()
+                    val senderEmail = settings.emailSenderAddress
+                    val senderPassword = settings.emailSenderPassword
+
+                    if (senderEmail.isNotBlank() && senderPassword.isNotBlank()) {
+                        Toast.makeText(context, "Mengirim laporan...", Toast.LENGTH_SHORT).show()
+                        val result = EmailSender.send(
+                            senderEmail = senderEmail,
+                            senderPassword = senderPassword,
+                            recipientEmail = settings.emailReportAddress,
+                            subject = subject,
+                            body = body
+                        )
+                        if (result.isSuccess) {
+                            Toast.makeText(context, "Laporan terkirim!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Gagal kirim: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "Email pengirim belum diatur di Pengaturan", Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
             onDismiss = { showEmailReportDialog = false }
         )
     }
@@ -121,9 +182,7 @@ fun AppNavigation() {
             startDestination = Screen.Pos.route,
         ) {
             composable(Screen.Pos.route) {
-                PosScreen(
-                    onOpenDrawer = { scope.launch { drawerState.open() } }
-                )
+                PosScreen(onOpenDrawer = { scope.launch { drawerState.open() } })
             }
             composable(Screen.Products.route) {
                 ProductsScreen(
@@ -133,9 +192,7 @@ fun AppNavigation() {
                 )
             }
             composable(Screen.History.route) {
-                HistoryScreen(
-                    onOpenDrawer = { scope.launch { drawerState.open() } }
-                )
+                HistoryScreen(onOpenDrawer = { scope.launch { drawerState.open() } })
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(onBack = { navController.popBackStack() })
@@ -145,146 +202,47 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("productId") { type = NavType.LongType })
             ) { backStackEntry ->
                 val productId = backStackEntry.arguments?.getLong("productId") ?: -1L
-                ProductEditScreen(
-                    productId = productId,
-                    onBack = { navController.popBackStack() }
-                )
+                ProductEditScreen(productId = productId, onBack = { navController.popBackStack() })
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EmailReportDialog(
+private fun EmailReportDatePicker(
+    onSend: (Date) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    val app = context.applicationContext as LokalPosApp
-    val settings = app.settingsManager
-    val transactionRepo = app.transactionRepository
-    val scope = rememberCoroutineScope()
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
 
-    var isLoading by remember { mutableStateOf(true) }
-    var aggregatedItems by remember { mutableStateOf<List<AggregatedSalesItem>>(emptyList()) }
-    var totalSales by remember { mutableStateOf(0.0) }
-    var txCount by remember { mutableStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val startTime = cal.timeInMillis
-        cal.set(Calendar.HOUR_OF_DAY, 23)
-        cal.set(Calendar.MINUTE, 59)
-        cal.set(Calendar.SECOND, 59)
-        cal.set(Calendar.MILLISECOND, 999)
-        val endTime = cal.timeInMillis
-
-        aggregatedItems = transactionRepo.getAggregatedSalesItems(startTime, endTime)
-        totalSales = transactionRepo.getTotalSales(startTime, endTime)
-        txCount = transactionRepo.getTransactionCount(startTime, endTime)
-        isLoading = false
-    }
-
-    AlertDialog(
+    DatePickerDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Laporan Penjualan Hari Ini") },
-        text = {
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            } else if (aggregatedItems.isEmpty()) {
-                Text("Belum ada penjualan hari ini.")
-            } else {
-                Column {
-                    Text(
-                        "$txCount transaksi - Total: ${settings.formatCurrency(totalSales)}",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(8.dp))
-                    aggregatedItems.forEach { item ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "${item.productName} x${item.totalQty}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                settings.formatCurrency(item.totalAmount),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        Spacer(Modifier.height(2.dp))
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("TOTAL", fontWeight = FontWeight.Bold)
-                        Text(settings.formatCurrency(totalSales), fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        },
         confirmButton = {
             Button(
                 onClick = {
-                    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("id", "ID"))
-                    val today = dateFormat.format(Date())
-
-                    val sb = StringBuilder()
-                    sb.appendLine("Laporan Penjualan Harian")
-                    sb.appendLine("${settings.storeName} - $today")
-                    sb.appendLine("================================")
-                    sb.appendLine("$txCount transaksi")
-                    sb.appendLine()
-
-                    aggregatedItems.forEach { item ->
-                        sb.appendLine("${item.productName} x${item.totalQty} = ${settings.formatCurrency(item.totalAmount)}")
-                    }
-                    sb.appendLine()
-                    sb.appendLine("================================")
-                    sb.appendLine("TOTAL: ${settings.formatCurrency(totalSales)}")
-
-                    val intent = Intent(Intent.ACTION_SENDTO).apply {
-                        data = Uri.parse("mailto:")
-                        putExtra(Intent.EXTRA_EMAIL, arrayOf(settings.emailReportAddress))
-                        putExtra(Intent.EXTRA_SUBJECT, "Laporan Penjualan ${settings.storeName} - $today")
-                        putExtra(Intent.EXTRA_TEXT, sb.toString())
-                    }
-
-                    try {
-                        context.startActivity(Intent.createChooser(intent, "Kirim laporan via..."))
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Tidak ada aplikasi email yang tersedia", Toast.LENGTH_LONG).show()
-                    }
-                    onDismiss()
-                },
-                enabled = aggregatedItems.isNotEmpty()
+                    val millis = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+                    onSend(Date(millis))
+                }
             ) {
-                Icon(Icons.Filled.Send, null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Send, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Kirim Email")
+                Text("Kirim Laporan")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Batal") }
         }
-    )
+    ) {
+        DatePicker(
+            state = datePickerState,
+            title = {
+                Text(
+                    "Pilih tanggal laporan",
+                    modifier = Modifier.padding(start = 24.dp, top = 16.dp),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+        )
+    }
 }

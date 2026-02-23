@@ -2,6 +2,7 @@ package com.lokalpos.app.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlin.math.roundToLong
 
 class SettingsManager(context: Context) {
 
@@ -9,7 +10,7 @@ class SettingsManager(context: Context) {
         context.getSharedPreferences("lokalpos_settings", Context.MODE_PRIVATE)
 
     var storeName: String
-        get() = prefs.getString("store_name", "Toko Saya") ?: "Toko Saya"
+        get() = prefs.getString("store_name", "Pempek Nori") ?: "Pempek Nori"
         set(value) = prefs.edit().putString("store_name", value).apply()
 
     var storeAddress: String
@@ -64,20 +65,24 @@ class SettingsManager(context: Context) {
         get() = prefs.getBoolean("email_report_enabled", false)
         set(value) = prefs.edit().putBoolean("email_report_enabled", value).apply()
 
-    var emailReportAddress: String
-        get() = prefs.getString("email_report_address", "ribka.apriliana.09@gmail.com") ?: "ribka.apriliana.09@gmail.com"
-        set(value) = prefs.edit().putString("email_report_address", value).apply()
+    val emailReportAddress: String
+        get() = "ribka.apriliana.09@gmail.com"
+
+    var emailSenderAddress: String
+        get() = prefs.getString("email_sender_address", "") ?: ""
+        set(value) = prefs.edit().putString("email_sender_address", value).apply()
+
+    var emailSenderPassword: String
+        get() = prefs.getString("email_sender_password", "") ?: ""
+        set(value) = prefs.edit().putString("email_sender_password", value).apply()
 
     var paymentMethods: Set<String>
         get() = prefs.getStringSet("payment_methods", setOf("Tunai", "Kartu Debit", "Kartu Kredit", "QRIS", "Transfer Bank")) ?: setOf("Tunai")
         set(value) = prefs.edit().putStringSet("payment_methods", value).apply()
 
     fun formatCurrency(amount: Double): String {
-        val formatted = if (amount == amount.toLong().toDouble()) {
-            "%,.0f".format(amount)
-        } else {
-            "%,.2f".format(amount)
-        }
+        val rounded = amount.roundToLong()
+        val formatted = "%,d".format(rounded).replace(',', '.')
         return "$currencySymbol $formatted"
     }
 }

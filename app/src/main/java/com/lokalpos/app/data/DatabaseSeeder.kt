@@ -1,0 +1,183 @@
+package com.lokalpos.app.data
+
+import com.lokalpos.app.data.entity.Category
+import com.lokalpos.app.data.entity.Product
+
+object DatabaseSeeder {
+
+    suspend fun seedIfEmpty(database: AppDatabase) {
+        val categoryDao = database.categoryDao()
+        val productDao = database.productDao()
+
+        if (categoryDao.count() > 0) return
+
+        val categoryColors = mapOf(
+            "Biaya Pack" to "#607D8B",
+            "GoFood" to "#4CAF50",
+            "GrabFood" to "#4CAF50",
+            "Hampers" to "#9C27B0",
+            "Kerupuk" to "#FF9800",
+            "Menu Porsi" to "#E91E63",
+            "Minuman" to "#2196F3",
+            "Paket Oleh - Oleh" to "#FF5722"
+        )
+
+        val categoryIds = mutableMapOf<String, Long>()
+        var sortOrder = 0
+        categoryColors.forEach { (name, color) ->
+            val id = categoryDao.insert(Category(name = name, color = color, sortOrder = sortOrder++))
+            categoryIds[name] = id
+        }
+
+        data class SeedProduct(val name: String, val sku: String, val category: String, val price: Double)
+
+        val products = listOf(
+            SeedProduct("[Beku] Sosis", "10115", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Telor", "10112", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Keju", "10113", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Kulit", "10117", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Adaan", "10111", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Campur", "10152", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] KejuTelor", "10150", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Lenjer", "10110", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Pepaya", "10116", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] Udang", "10114", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Beku] UdangSosis", "10151", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("[Fresh] Keju", "10104", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Kulit", "10109", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Sosis", "10107", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Telor", "10105", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Adaan", "10103", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Lenjer", "10102", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Pepaya", "10108", "Menu Porsi", 5000.0),
+            SeedProduct("[Fresh] Udang", "10106", "Menu Porsi", 5000.0),
+            SeedProduct("[Goreng] Adaan", "10095", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Keju", "10096", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Kulit", "10101", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Lenjer", "10094", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Pepaya", "10100", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Sosis", "10099", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Telor", "10097", "Menu Porsi", 6000.0),
+            SeedProduct("[Goreng] Udang", "10098", "Menu Porsi", 6000.0),
+            SeedProduct("Air Putih", "10037", "Minuman", 2000.0),
+            SeedProduct("Aqua Botol", "10030", "Minuman", 7000.0),
+            SeedProduct("Aqua gelas", "10029", "Minuman", 1000.0),
+            SeedProduct("Besek 100", "10093", "Hampers", 540000.0),
+            SeedProduct("Besek 20", "10054", "Hampers", 130000.0),
+            SeedProduct("Besek 30", "10055", "Hampers", 185000.0),
+            SeedProduct("Besek 40", "10056", "Hampers", 230000.0),
+            SeedProduct("Besek 50", "10057", "Hampers", 285000.0),
+            SeedProduct("Besek 60", "10058", "Hampers", 340000.0),
+            SeedProduct("Besek 70", "10059", "Hampers", 385000.0),
+            SeedProduct("Besek 80", "10060", "Hampers", 440000.0),
+            SeedProduct("Besek 90", "10120", "Hampers", 490000.0),
+            SeedProduct("Biaya Pack L", "10036", "Biaya Pack", 18000.0),
+            SeedProduct("Biaya Pack M", "10035", "Biaya Pack", 12000.0),
+            SeedProduct("Biaya Pack S", "10034", "Biaya Pack", 6000.0),
+            SeedProduct("Cuka 100 cc", "10019", "Paket Oleh - Oleh", 7000.0),
+            SeedProduct("Cuka 200 cc", "10020", "Paket Oleh - Oleh", 14000.0),
+            SeedProduct("Cuka 300 cc", "10021", "Paket Oleh - Oleh", 21000.0),
+            SeedProduct("Cuka 400 cc", "10022", "Paket Oleh - Oleh", 28000.0),
+            SeedProduct("Ebi", "10018", "Menu Porsi", 3500.0),
+            SeedProduct("Ebi 100 gr", "10122", "Menu Porsi", 45000.0),
+            SeedProduct("Es Kosong", "10049", "Minuman", 2000.0),
+            SeedProduct("Es Tawar", "10048", "Minuman", 3000.0),
+            SeedProduct("Es Teh Manis", "10042", "Minuman", 7000.0),
+            SeedProduct("Es Teh Tawar", "10041", "Minuman", 5000.0),
+            SeedProduct("Fruit Tea", "10038", "Minuman", 13000.0),
+            SeedProduct("Jeruk", "10043", "Minuman", 22000.0),
+            SeedProduct("Jeruk Murni", "10044", "Minuman", 28000.0),
+            SeedProduct("Kacang Merah", "8", "Minuman", 25000.0),
+            SeedProduct("Kacang Telur", "10013", "Kerupuk", 22000.0),
+            SeedProduct("Kapal Selam", "10001", "Menu Porsi", 29000.0),
+            SeedProduct("Kapal Selam \"GOFOOD\"", "10063", "GoFood", 36500.0),
+            SeedProduct("Kapal Selam \"GRAB\"", "10077", "GrabFood", 36500.0),
+            SeedProduct("Kapal Selam (5 pcs)", "10007", "Paket Oleh - Oleh", 95000.0),
+            SeedProduct("Kapal Selam Pack \"GOFOOD\"", "10075", "GoFood", 119000.0),
+            SeedProduct("Kapal Selam Pack \"GRAB\"", "10078", "GrabFood", 119000.0),
+            SeedProduct("Kemplang Toyan", "10026", "Kerupuk", 33000.0),
+            SeedProduct("Kerupuk Besar", "10025", "Kerupuk", 37000.0),
+            SeedProduct("Kerupuk Kecil", "10023", "Kerupuk", 10000.0),
+            SeedProduct("Kerupuk Pecah Seribu", "10016", "Kerupuk", 49000.0),
+            SeedProduct("Kombucha", "10153", "Minuman", 25000.0),
+            SeedProduct("Kopi", "9", "Minuman", 15000.0),
+            SeedProduct("Kopi pack", "10154", "Kerupuk", 50000.0),
+            SeedProduct("Kuah Tekwan", "10031", "Menu Porsi", 12000.0),
+            SeedProduct("Kuah Tekwan Pack", "10032", "Paket Oleh - Oleh", 45000.0),
+            SeedProduct("Lemon Tea", "10046", "Minuman", 18000.0),
+            SeedProduct("Lenggang", "10009", "Menu Porsi", 29000.0),
+            SeedProduct("Lenggang \"GOFOOD\"", "10064", "GoFood", 36500.0),
+            SeedProduct("Lenggang \"GRAB\"", "10079", "GrabFood", 36500.0),
+            SeedProduct("Lenjer Utuh", "10024", "Paket Oleh - Oleh", 45000.0),
+            SeedProduct("Model", "10011", "Menu Porsi", 29000.0),
+            SeedProduct("Model \"GOFOOD\"", "10067", "GoFood", 36500.0),
+            SeedProduct("Model \"GRAB\"", "10080", "GrabFood", 36500.0),
+            SeedProduct("Nampan 20", "10050", "Hampers", 130000.0),
+            SeedProduct("Nampan 30", "10051", "Hampers", 185000.0),
+            SeedProduct("Nampan 40", "10052", "Hampers", 230000.0),
+            SeedProduct("Ongkir", "10028", "Paket Oleh - Oleh", 1000.0),
+            SeedProduct("Paket 1 (40 pcs)", "10000", "Paket Oleh - Oleh", 200000.0),
+            SeedProduct("Paket 1 (40 pcs) \"GOFOOD\"", "10069", "GoFood", 250000.0),
+            SeedProduct("Paket 1 (40 pcs) \"GRAB\"", "10081", "GrabFood", 250000.0),
+            SeedProduct("Paket 2 (50 pcs)", "10002", "Paket Oleh - Oleh", 250000.0),
+            SeedProduct("Paket 2 (50 pcs) \"GOFOOD\"", "10070", "GoFood", 312500.0),
+            SeedProduct("Paket 2 (50 pcs) \"GRAB\"", "10082", "GrabFood", 312500.0),
+            SeedProduct("Paket 3 (60 pcs)", "10003", "Paket Oleh - Oleh", 300000.0),
+            SeedProduct("Paket 3 (60 pcs) \"GOFOOD\"", "10071", "GoFood", 375000.0),
+            SeedProduct("Paket 3 (60 pcs) \"GRAB\"", "10083", "GrabFood", 375000.0),
+            SeedProduct("Paket 4 (70 pcs)", "10004", "Paket Oleh - Oleh", 350000.0),
+            SeedProduct("Paket 4 (70 pcs) \"GOFOOD\"", "10072", "GoFood", 437500.0),
+            SeedProduct("Paket 4 (70 pcs) \"GRAB\"", "10084", "GrabFood", 437500.0),
+            SeedProduct("Paket 5 (80 pcs)", "10005", "Paket Oleh - Oleh", 400000.0),
+            SeedProduct("Paket 5 (80 pcs) \"GOFOOD\"", "10073", "GoFood", 500000.0),
+            SeedProduct("Paket 5 (80 pcs) \"GRAB\"", "10085", "GrabFood", 500000.0),
+            SeedProduct("Paket 6 (100 pcs)", "10006", "Paket Oleh - Oleh", 500000.0),
+            SeedProduct("Paket 6 (100 pcs) \"GOFOOD\"", "10074", "GoFood", 625000.0),
+            SeedProduct("Paket 6 (100 pcs) \"GRAB\"", "10086", "GrabFood", 625000.0),
+            SeedProduct("Pcs Pempek Fresh", "10014", "Menu Porsi", 5000.0),
+            SeedProduct("Pcs Pempek Fresh \"GOFOOD\"", "10062", "GoFood", 6300.0),
+            SeedProduct("Pcs Pempek Fresh \"GRAB\"", "10087", "GrabFood", 6300.0),
+            SeedProduct("Pcs Pempek Goreng", "10015", "Menu Porsi", 6000.0),
+            SeedProduct("Pcs Pempek Goreng \"GOFOOD\"", "10061", "GoFood", 7500.0),
+            SeedProduct("Pcs Pempek Goreng \"GRAB\"", "10088", "GrabFood", 7500.0),
+            SeedProduct("Per Pack", "1", "Paket Oleh - Oleh", 50000.0),
+            SeedProduct("Porsi Mie", "10017", "Menu Porsi", 3500.0),
+            SeedProduct("Putih Telor", "5", "Biaya Pack", 8000.0),
+            SeedProduct("Rujak Tahu", "3", "Menu Porsi", 29000.0),
+            SeedProduct("Rujak Tahu \"GOFOOD\"", "10068", "GoFood", 36500.0),
+            SeedProduct("Rujak Tahu \"GRAB\"", "10089", "GrabFood", 36500.0),
+            SeedProduct("Selam Polos", "2", "Menu Porsi", 19000.0),
+            SeedProduct("Selam Renang", "10012", "Menu Porsi", 33000.0),
+            SeedProduct("Selam Renang \"GOFOOD\"", "10066", "GoFood", 41500.0),
+            SeedProduct("Selam Renang \"GRAB\"", "10090", "GrabFood", 41500.0),
+            SeedProduct("Teh Botol Kecil", "10033", "Minuman", 7000.0),
+            SeedProduct("Teh Manis", "10040", "Minuman", 5000.0),
+            SeedProduct("Teh Tarik", "10045", "Minuman", 18000.0),
+            SeedProduct("Teh Tarik Jelly", "10047", "Minuman", 15000.0),
+            SeedProduct("Teh Tawar", "10039", "Minuman", 4000.0),
+            SeedProduct("Tekwan", "10010", "Menu Porsi", 29000.0),
+            SeedProduct("Tekwan \"GOFOOD\"", "10065", "GoFood", 36500.0),
+            SeedProduct("Tekwan \"GRAB\"", "10091", "GrabFood", 36500.0),
+            SeedProduct("Tekwan (5 pcs)", "10008", "Paket Oleh - Oleh", 110000.0),
+            SeedProduct("Tekwan Pack \"GOFOOD\"", "10076", "GoFood", 137500.0),
+            SeedProduct("Tekwan Pack \"GRAB\"", "10092", "GrabFood", 137500.0),
+            SeedProduct("Telur Gabus", "10027", "Kerupuk", 26000.0),
+            SeedProduct("Tote Bag 40", "10053", "Hampers", 240000.0),
+            SeedProduct("Tote Bag 50", "10118", "Hampers", 290000.0),
+            SeedProduct("Tote Bag 60", "10119", "Hampers", 340000.0),
+            SeedProduct("Tote Bag 70", "10121", "Hampers", 390000.0),
+            SeedProduct("Tote Bag 80", "10123", "Hampers", 440000.0),
+        )
+
+        for (p in products) {
+            productDao.insert(
+                Product(
+                    name = p.name,
+                    sku = p.sku,
+                    categoryId = categoryIds[p.category],
+                    price = p.price
+                )
+            )
+        }
+    }
+}
