@@ -30,6 +30,8 @@ data class Product(
     val lowStockAlert: Int = 5,
     val soldCount: Int = 0,
     val imageUri: String? = null,
+    val color: String? = null,
+    val shape: String? = null,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )

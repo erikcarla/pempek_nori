@@ -1,8 +1,11 @@
 package com.lokalpos.app.ui.screens.products
 
 import android.app.Application
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +14,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -36,6 +41,8 @@ data class ProductEditState(
     val trackStock: Boolean = false,
     val inStock: String = "0",
     val lowStockAlert: String = "5",
+    val color: String = "#4CAF50",
+    val shape: String = "circle",
     val categories: List<Category> = emptyList(),
     val isNew: Boolean = true,
     val isSaving: Boolean = false,
@@ -72,6 +79,8 @@ class ProductEditViewModel(application: Application) : AndroidViewModel(applicat
                         trackStock = product.trackStock,
                         inStock = product.inStock.toString(),
                         lowStockAlert = product.lowStockAlert.toString(),
+                        color = product.color ?: "#4CAF50",
+                        shape = product.shape ?: "circle",
                         isNew = false
                     )
                 }
@@ -100,7 +109,9 @@ class ProductEditViewModel(application: Application) : AndroidViewModel(applicat
                 categoryId = s.categoryId,
                 trackStock = s.trackStock,
                 inStock = s.inStock.toIntOrNull() ?: 0,
-                lowStockAlert = s.lowStockAlert.toIntOrNull() ?: 5
+                lowStockAlert = s.lowStockAlert.toIntOrNull() ?: 5,
+                color = s.color.ifBlank { null },
+                shape = s.shape.ifBlank { null }
             )
 
             if (s.isNew) {
@@ -251,6 +262,38 @@ fun ProductEditScreen(
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp)
                 )
+            }
+
+            HorizontalDivider()
+
+            Text("Warna", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("#4CAF50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4", "#FF5722", "#607D8B").forEach { hex ->
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Gray })
+                            .clickable { viewModel.updateField { copy(color = hex) } },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (state.color == hex) {
+                            Icon(androidx.compose.material.icons.Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("Bentuk", style = MaterialTheme.typography.titleMedium)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("circle" to "Bulat", "square" to "Kotak").forEach { (value, label) ->
+                    FilterChip(
+                        selected = state.shape == value,
+                        onClick = { viewModel.updateField { copy(shape = value) } },
+                        label = { Text(label) }
+                    )
+                }
             }
 
             HorizontalDivider()

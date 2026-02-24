@@ -116,17 +116,19 @@ fun ProductsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
+                    val selected = state.selectedCategoryId == null
                     FilterChip(
-                        selected = state.selectedCategoryId == null,
+                        selected = selected,
                         onClick = { viewModel.filterByCategory(null) },
-                        label = { Text("Semua (${state.products.size})") }
+                        label = { Text(if (selected) "Semua (${state.products.size})" else "Semua") }
                     )
                 }
                 items(state.categories) { category ->
+                    val selected = state.selectedCategoryId == category.id
                     FilterChip(
-                        selected = state.selectedCategoryId == category.id,
+                        selected = selected,
                         onClick = { viewModel.filterByCategory(category.id) },
-                        label = { Text(category.name) },
+                        label = { Text(if (selected) "${category.name} (${state.products.size})" else category.name) },
                         trailingIcon = {
                             Icon(
                                 Icons.Filled.MoreVert,

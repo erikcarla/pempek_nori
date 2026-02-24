@@ -16,6 +16,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.lokalpos.app.LokalPosApp
+import com.lokalpos.app.ui.screens.dashboard.DashboardScreen
 import com.lokalpos.app.ui.screens.history.HistoryScreen
 import com.lokalpos.app.ui.screens.pos.PosScreen
 import com.lokalpos.app.ui.screens.products.ProductEditScreen
@@ -31,6 +32,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     data object Products : Screen("products", "Produk", Icons.Filled.Inventory2)
     data object History : Screen("history", "Riwayat", Icons.Filled.Receipt)
     data object Settings : Screen("settings", "Pengaturan", Icons.Filled.Settings)
+    data object Dashboard : Screen("dashboard", "Dashboard", Icons.Filled.Dashboard)
     data object ProductEdit : Screen("product_edit/{productId}", "Edit Produk", Icons.Filled.Edit) {
         fun createRoute(productId: Long = -1L) = "product_edit/$productId"
     }
@@ -38,8 +40,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 
 private val drawerItems = listOf(
     Screen.Pos,
-    Screen.Products,
     Screen.History,
+    Screen.Products,
     Screen.Settings,
 )
 
@@ -100,13 +102,14 @@ fun AppNavigation() {
                     val body = sb.toString()
                     val senderEmail = settings.emailSenderAddress
                     val senderPassword = settings.emailSenderPassword
+                    val recipientEmail = settings.emailReportAddress
 
                     if (senderEmail.isNotBlank() && senderPassword.isNotBlank()) {
                         Toast.makeText(context, "Mengirim laporan...", Toast.LENGTH_SHORT).show()
                         val result = EmailSender.send(
                             senderEmail = senderEmail,
                             senderPassword = senderPassword,
-                            recipientEmail = settings.emailReportAddress,
+                            recipientEmail = recipientEmail,
                             subject = subject,
                             body = body
                         )
@@ -161,6 +164,21 @@ fun AppNavigation() {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
 
                 NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.Dashboard, contentDescription = "Dashboard") },
+                    label = { Text("Dashboard") },
+                    selected = currentRoute == Screen.Dashboard.route,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(Screen.Pos.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
                     icon = { Icon(Icons.Filled.Email, contentDescription = "Kirim Laporan") },
                     label = { Text("Kirim Laporan Harian") },
                     selected = false,
@@ -196,6 +214,9 @@ fun AppNavigation() {
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.Dashboard.route) {
+                DashboardScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 route = Screen.ProductEdit.route,

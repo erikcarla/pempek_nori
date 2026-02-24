@@ -97,6 +97,10 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         setFilter("Semua", 0L, System.currentTimeMillis())
     }
 
+    fun filterCustomRange(startTime: Long, endTime: Long) {
+        setFilter("Periode Lainnya", startTime, endTime)
+    }
+
     fun showDetail(transaction: Transaction) {
         viewModelScope.launch {
             val items = repo.getTransactionItems(transaction.id)

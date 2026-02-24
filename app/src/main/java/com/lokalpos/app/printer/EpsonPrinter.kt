@@ -214,16 +214,13 @@ class EpsonPrinter(private val context: Context) {
 
         addDash()
 
-        addLine(padLeftRight("Subtotal", formatNum(transaction.subtotal), width))
         if (transaction.discountAmount > 0) {
             val discLabel = if (transaction.discountPercent > 0)
                 "Diskon (${transaction.discountPercent.toInt()}%)" else "Diskon"
             addLine(padLeftRight(discLabel, "-${formatNum(transaction.discountAmount)}", width))
         }
         if (transaction.taxAmount > 0) {
-            val taxLabel = if (transaction.taxPercent > 0)
-                "Pajak (${transaction.taxPercent.toInt()}%)" else "Pajak"
-            addLine(padLeftRight(taxLabel, formatNum(transaction.taxAmount), width))
+            addLine(padLeftRight("PB1", formatNum(transaction.taxAmount), width))
         }
 
         addDash()
@@ -253,11 +250,12 @@ class EpsonPrinter(private val context: Context) {
     }
 
     private fun formatNum(value: Double): String {
-        return if (value == value.toLong().toDouble()) {
-            "%,.0f".format(value)
+        val formatted = if (value == value.toLong().toDouble()) {
+            "%,d".format(value.toLong())
         } else {
             "%,.2f".format(value)
         }
+        return formatted.replace(",", ".")
     }
 
     private fun padLeftRight(left: String, right: String, width: Int): String {

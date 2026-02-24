@@ -42,8 +42,18 @@ fun SettingsScreen(onBack: () -> Unit) {
     var printerEnabled by remember { mutableStateOf(settings.printerEnabled) }
     var receiptWidth by remember { mutableStateOf(settings.receiptWidth.toString()) }
     var emailReportEnabled by remember { mutableStateOf(settings.emailReportEnabled) }
+    var emailReportAddress by remember { mutableStateOf(settings.emailReportAddress) }
     var emailSenderAddress by remember { mutableStateOf(settings.emailSenderAddress) }
     var emailSenderPassword by remember { mutableStateOf(settings.emailSenderPassword) }
+    var productDisplayMode by remember { mutableStateOf(settings.productDisplayMode) }
+    var appPassword by remember { mutableStateOf(settings.appPassword) }
+    var showPasswordSection by remember { mutableStateOf(false) }
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var showEmailPassword by remember { mutableStateOf(false) }
+    var emailPassword by remember { mutableStateOf("") }
+    var paymentMethodsSet by remember { mutableStateOf(settings.paymentMethods) }
 
     fun save() {
         settings.storeName = storeName
@@ -57,10 +67,22 @@ fun SettingsScreen(onBack: () -> Unit) {
         settings.autoDeleteDays = autoDeleteDays.toIntOrNull() ?: 30
         settings.currencySymbol = currencySymbol
         settings.printerEnabled = printerEnabled
-        settings.receiptWidth = receiptWidth.toIntOrNull() ?: 42
+        settings.receiptWidth = receiptWidth.toIntOrNull() ?: 33
         settings.emailReportEnabled = emailReportEnabled
+        if (emailReportAddress != settings.emailReportAddress) {
+            if (emailPassword == settings.appPassword) {
+                settings.emailReportAddress = emailReportAddress
+            } else {
+                Toast.makeText(context, "Password salah, email penerima tidak diubah", Toast.LENGTH_LONG).show()
+            }
+        }
         settings.emailSenderAddress = emailSenderAddress
         settings.emailSenderPassword = emailSenderPassword
+        settings.productDisplayMode = productDisplayMode
+        settings.paymentMethods = paymentMethodsSet
+        if (newPassword.isNotBlank() && newPassword == confirmPassword && oldPassword == settings.appPassword) {
+            settings.appPassword = newPassword
+        }
         Toast.makeText(context, "Pengaturan disimpan", Toast.LENGTH_SHORT).show()
     }
 
@@ -134,14 +156,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 Switch(checked = printerEnabled, onCheckedChange = { printerEnabled = it })
             }
+            OutlinedTextField(
+                value = receiptWidth, onValueChange = { receiptWidth = it },
+                modifier = Modifier.fillMaxWidth(), label = { Text("Lebar Struk (karakter)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true, shape = RoundedCornerShape(12.dp),
+                supportingText = { Text("Default 33") }
+            )
             if (printerEnabled) {
-                OutlinedTextField(
-                    value = receiptWidth, onValueChange = { receiptWidth = it },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("Lebar Struk (karakter)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true, shape = RoundedCornerShape(12.dp),
-                    supportingText = { Text("42 untuk Font A, 56 untuk Font B") }
-                )
                 Button(
                     onClick = {
                         scope.launch {
@@ -159,6 +181,27 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Icon(Icons.Filled.Print, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Test Koneksi Printer")
+                }
+            }
+
+            HorizontalDivider()
+
+            SectionHeader("Metode Pembayaran", Icons.Filled.Payment)
+            val allMethods = listOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")
+            allMethods.forEach { method ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(method)
+                    Checkbox(
+                        checked = paymentMethodsSet.contains(method),
+                        onCheckedChange = { checked ->
+                            paymentMethodsSet = if (checked) paymentMethodsSet + method else paymentMethodsSet - method
+                            settings.paymentMethods = paymentMethodsSet
+                        }
+                    )
                 }
             }
 
@@ -203,11 +246,23 @@ fun SettingsScreen(onBack: () -> Unit) {
             ) {
                 Column {
                     Text("Kirim Laporan Harian", style = MaterialTheme.typography.bodyLarge)
-                    Text("Ke: ${settings.emailReportAddress}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Ke: $emailReportAddress", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = emailReportEnabled, onCheckedChange = { emailReportEnabled = it })
             }
             if (emailReportEnabled) {
+                OutlinedTextField(
+                    value = emailReportAddress, onValueChange = { emailReportAddress = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Email Penerima") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp)
+                )
+                OutlinedTextField(
+                    value = emailPassword, onValueChange = { emailPassword = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Password (untuk ubah email penerima)") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation(),
+                    supportingText = { Text("Masukkan password untuk mengubah email penerima") }
+                )
                 OutlinedTextField(
                     value = emailSenderAddress, onValueChange = { emailSenderAddress = it },
                     modifier = Modifier.fillMaxWidth(), label = { Text("Email Pengirim (Gmail)") },
@@ -220,6 +275,57 @@ fun SettingsScreen(onBack: () -> Unit) {
                     singleLine = true, shape = RoundedCornerShape(12.dp),
                     visualTransformation = PasswordVisualTransformation(),
                     supportingText = { Text("Buat di myaccount.google.com > Security > App Passwords") }
+                )
+            }
+
+            HorizontalDivider()
+
+            SectionHeader("Tampilan Kasir", Icons.Filled.GridView)
+            Text("Tampilan produk", style = MaterialTheme.typography.bodyLarge)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FilterChip(
+                    selected = productDisplayMode == "grid",
+                    onClick = { productDisplayMode = "grid" },
+                    label = { Text("Grid") }
+                )
+                FilterChip(
+                    selected = productDisplayMode == "list",
+                    onClick = { productDisplayMode = "list" },
+                    label = { Text("List") }
+                )
+            }
+
+            HorizontalDivider()
+
+            SectionHeader("Password", Icons.Filled.Lock)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Ganti Password", style = MaterialTheme.typography.bodyLarge)
+                TextButton(onClick = { showPasswordSection = !showPasswordSection }) {
+                    Text(if (showPasswordSection) "Tutup" else "Ubah")
+                }
+            }
+            if (showPasswordSection) {
+                OutlinedTextField(
+                    value = oldPassword, onValueChange = { oldPassword = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Password Lama") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                OutlinedTextField(
+                    value = newPassword, onValueChange = { newPassword = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Password Baru") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation()
+                )
+                OutlinedTextField(
+                    value = confirmPassword, onValueChange = { confirmPassword = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Konfirmasi Password Baru") },
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation()
                 )
             }
 

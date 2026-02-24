@@ -58,15 +58,24 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putBoolean("printer_enabled", value).apply()
 
     var receiptWidth: Int
-        get() = prefs.getInt("receipt_width", 42)
+        get() = prefs.getInt("receipt_width", 33)
         set(value) = prefs.edit().putInt("receipt_width", value).apply()
+
+    var appPassword: String
+        get() = prefs.getString("app_password", "IkanKakap46") ?: "IkanKakap46"
+        set(value) = prefs.edit().putString("app_password", value).apply()
+
+    var emailReportAddress: String
+        get() = prefs.getString("email_report_address", "ribka.apriliana.09@gmail.com") ?: "ribka.apriliana.09@gmail.com"
+        set(value) = prefs.edit().putString("email_report_address", value).apply()
+
+    var productDisplayMode: String
+        get() = prefs.getString("product_display_mode", "grid") ?: "grid"
+        set(value) = prefs.edit().putString("product_display_mode", value).apply()
 
     var emailReportEnabled: Boolean
         get() = prefs.getBoolean("email_report_enabled", false)
         set(value) = prefs.edit().putBoolean("email_report_enabled", value).apply()
-
-    val emailReportAddress: String
-        get() = "ribka.apriliana.09@gmail.com"
 
     var emailSenderAddress: String
         get() = prefs.getString("email_sender_address", "") ?: ""
@@ -77,7 +86,7 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putString("email_sender_password", value).apply()
 
     var paymentMethods: Set<String>
-        get() = prefs.getStringSet("payment_methods", setOf("Tunai", "Kartu Debit", "Kartu Kredit", "QRIS", "Transfer Bank")) ?: setOf("Tunai")
+        get() = prefs.getStringSet("payment_methods", setOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")) ?: setOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")
         set(value) = prefs.edit().putStringSet("payment_methods", value).apply()
 
     fun formatCurrency(amount: Double): String {

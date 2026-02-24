@@ -30,6 +30,17 @@ fun HistoryScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val settings = viewModel.settings
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID")) }
+    var showDateRangePicker by remember { mutableStateOf(false) }
+
+    if (showDateRangePicker) {
+        DateRangePickerDialog(
+            onConfirm = { start, end ->
+                viewModel.filterCustomRange(start, end)
+                showDateRangePicker = false
+            },
+            onDismiss = { showDateRangePicker = false }
+        )
+    }
 
     if (state.showDetail && state.selectedTransaction != null) {
         TransactionDetailDialog(
@@ -92,9 +103,9 @@ fun HistoryScreen(
                 }
                 item {
                     FilterChip(
-                        selected = state.filterLabel == "Semua",
-                        onClick = { viewModel.filterAll() },
-                        label = { Text("Semua") }
+                        selected = state.filterLabel == "Periode Lainnya",
+                        onClick = { showDateRangePicker = true },
+                        label = { Text("Periode Lainnya") }
                     )
                 }
             }
@@ -239,10 +250,6 @@ private fun TransactionDetailDialog(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Subtotal")
-                    Text(settings.formatCurrency(transaction.subtotal))
-                }
                 if (transaction.taxAmount > 0) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("PB1")
@@ -281,4 +288,57 @@ private fun TransactionDetailDialog(
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateRangePickerDialog(
+    onConfirm: (Long, Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val cal = Calendar.getInstance()
+    var startDate by remember { mutableStateOf<Long?>(cal.timeInMillis) }
+    var endDate by remember { mutableStateOf<Long?>(cal.timeInMillis) }
+    val startPickerState = rememberDatePickerState(initialSelectedDateMillis = startDate)
+    var showEndPicker by remember { mutableStateOf(false) }
+
+    if (!showEndPicker) {
+        DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                Button(onClick = {
+                    startDate = startPickerState.selectedDateMillis
+                    showEndPicker = true
+                }) { Text("Lanjut") }
+            }
+        ) {
+            DatePicker(
+                state = startPickerState,
+                title = { Text("Tanggal Mulai", modifier = Modifier.padding(24.dp, 16.dp)) }
+            )
+        }
+    } else {
+        val endPickerState = rememberDatePickerState(
+            initialSelectedDateMillis = endDate ?: startDate
+        )
+        DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                Button(onClick = {
+                    val start = (startDate ?: endPickerState.selectedDateMillis).let {
+                        Calendar.getInstance().apply { timeInMillis = it; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+                    }
+                    val end = (endPickerState.selectedDateMillis ?: start).let {
+                        Calendar.getInstance().apply { timeInMillis = it; set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
+                    }
+                    onConfirm(start, end)
+                }) { Text("Terapkan") }
+            }
+        ) {
+            DatePicker(
+                state = endPickerState,
+                title = { Text("Tanggal Akhir", modifier = Modifier.padding(24.dp, 16.dp)) }
+            )
+        }
+    }
 }
