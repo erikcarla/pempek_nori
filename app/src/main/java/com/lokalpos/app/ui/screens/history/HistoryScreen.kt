@@ -325,12 +325,10 @@ private fun DateRangePickerDialog(
             onDismissRequest = onDismiss,
             confirmButton = {
                 Button(onClick = {
-                    val start = (startDate ?: endPickerState.selectedDateMillis).let {
-                        Calendar.getInstance().apply { timeInMillis = it; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-                    }
-                    val end = (endPickerState.selectedDateMillis ?: start).let {
-                        Calendar.getInstance().apply { timeInMillis = it; set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
-                    }
+                    val startMillis = startDate ?: endPickerState.selectedDateMillis ?: System.currentTimeMillis()
+                    val start = Calendar.getInstance().apply { timeInMillis = startMillis; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+                    val endMillis = endPickerState.selectedDateMillis ?: start
+                    val end = Calendar.getInstance().apply { timeInMillis = endMillis; set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
                     onConfirm(start, end)
                 }) { Text("Terapkan") }
             }

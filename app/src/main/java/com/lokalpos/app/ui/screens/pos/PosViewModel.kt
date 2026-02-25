@@ -1,7 +1,6 @@
 package com.lokalpos.app.ui.screens.pos
 
 import android.app.Application
-
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lokalpos.app.LokalPosApp
@@ -11,6 +10,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 private fun String.normalizeAmount(): String = replace(",", "").replace(".", "").trim().ifBlank { "0" }
+
 data class CartItem(
     val product: Product,
     val quantity: Int = 1,
@@ -405,7 +405,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             val exists = openTicketRepo.ticketExists(tableName)
 
             if (exists && !isUpdating) {
-                val suggested = suggestTicketName(tableName)
+                val existingKeys = openTicketRepo.getAllTicketsSync().keys
+                val suggested = suggestTicketName(tableName, existingKeys)
                 _uiState.update {
                     it.copy(
                         ticketDuplicateError = "Sudah ada meja $tableName! Gunakan nama lain misal $suggested",
@@ -435,8 +436,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun suggestTicketName(base: String): String {
-        val existing = openTicketRepo.getAllTicketsSync().keys
+    private fun suggestTicketName(base: String, existing: Set<String>): String {
         var n = 2
         while (true) {
             val candidate = "$base($n)"
