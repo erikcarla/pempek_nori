@@ -51,10 +51,6 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var isDrawerAnimating by remember { mutableStateOf(false) }
-    LaunchedEffect(drawerState.isOpen) {
-        if (drawerState.isClosed) isDrawerAnimating = false
-    }
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
     val context = LocalContext.current
@@ -204,38 +200,17 @@ fun AppNavigation() {
             startDestination = Screen.Pos.route,
         ) {
             composable(Screen.Pos.route) {
-                PosScreen(onOpenDrawer = {
-                    if (!isDrawerAnimating && !drawerState.isOpen) {
-                        isDrawerAnimating = true
-                        scope.launch {
-                            try { drawerState.open() } finally { isDrawerAnimating = false }
-                        }
-                    }
-                })
+                PosScreen(onOpenDrawer = { scope.launch { drawerState.open() } })
             }
             composable(Screen.Products.route) {
                 ProductsScreen(
                     onAddProduct = { navController.navigate(Screen.ProductEdit.createRoute()) },
                     onEditProduct = { navController.navigate(Screen.ProductEdit.createRoute(it)) },
-                    onOpenDrawer = {
-                        if (!isDrawerAnimating && !drawerState.isOpen) {
-                            isDrawerAnimating = true
-                            scope.launch {
-                                try { drawerState.open() } finally { isDrawerAnimating = false }
-                            }
-                        }
-                    }
+                    onOpenDrawer = { scope.launch { drawerState.open() } }
                 )
             }
             composable(Screen.History.route) {
-                HistoryScreen(onOpenDrawer = {
-                    if (!isDrawerAnimating && !drawerState.isOpen) {
-                        isDrawerAnimating = true
-                        scope.launch {
-                            try { drawerState.open() } finally { isDrawerAnimating = false }
-                        }
-                    }
-                })
+                HistoryScreen(onOpenDrawer = { scope.launch { drawerState.open() } })
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(onBack = { navController.popBackStack() })

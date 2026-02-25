@@ -9,7 +9,7 @@ import com.lokalpos.app.data.entity.Product
 import com.lokalpos.app.ui.screens.pos.CartItem
 import com.lokalpos.app.ui.screens.pos.OpenTicket
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flow
 
 private data class CartItemJson(
     val productId: Long,
@@ -26,16 +26,23 @@ class OpenTicketRepository(
     private val gson = Gson()
     private val listType = object : TypeToken<List<CartItemJson>>() {}.type
 
-    fun getAllTickets(): Flow<Map<String, OpenTicket>> {
-        return openTicketDao.getAllFlow().map { entities ->
-            entities.associate { entity ->
-                entity.tableName to entity.toOpenTicket()
-            }
+    fun getAllTickets(): Flow<Map<String, OpenTicket>> = flow {
+        openTicketDao.getAllFlow().collect { entities ->
+            emit(buildMap {
+                for (entity in entities) {
+                    put(entity.tableName, entity.toOpenTicket())
+                }
+            })
         }
     }
 
     suspend fun getAllTicketsSync(): Map<String, OpenTicket> {
-        return openTicketDao.getAll().associate { it.tableName to it.toOpenTicket() }
+        val entities = openTicketDao.getAll()
+        return buildMap {
+            for (entity in entities) {
+                put(entity.tableName, entity.toOpenTicket())
+            }
+        }
     }
 
     private suspend fun OpenTicketEntity.toOpenTicket(): OpenTicket {
