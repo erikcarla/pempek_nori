@@ -2,7 +2,6 @@ package com.lokalpos.app.ui.screens.pos
 
 import android.app.Application
 
-private fun String.normalizeAmount(): String = replace(",", "").replace(".", "").trim().ifBlank { "0" }
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.lokalpos.app.LokalPosApp
@@ -11,6 +10,7 @@ import com.lokalpos.app.printer.EpsonPrinter
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+private fun String.normalizeAmount(): String = replace(",", "").replace(".", "").trim().ifBlank { "0" }
 data class CartItem(
     val product: Product,
     val quantity: Int = 1,
