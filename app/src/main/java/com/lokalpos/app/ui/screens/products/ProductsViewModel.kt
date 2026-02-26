@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 
 data class ProductsUiState(
     val products: List<Product> = emptyList(),
+    val allProductsCount: Int = 0,
     val categories: List<Category> = emptyList(),
     val searchQuery: String = "",
     val selectedCategoryId: Long? = null,
@@ -29,12 +30,25 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch {
             repo.getAllProducts().collect { products ->
-                _uiState.update { it.copy(products = products) }
+                _uiState.update { state ->
+                    // Only update allProductsCount when viewing all products (no filter)
+                    if (state.selectedCategoryId == null && state.searchQuery.isBlank()) {
+                        state.copy(products = products, allProductsCount = products.size)
+                    } else {
+                        state.copy(products = products)
+                    }
+                }
             }
         }
         viewModelScope.launch {
             repo.getAllCategories().collect { categories ->
                 _uiState.update { it.copy(categories = categories) }
+            }
+        }
+        // Initialize allProductsCount
+        viewModelScope.launch {
+            repo.getAllProducts().collect { products ->
+                _uiState.update { it.copy(allProductsCount = products.size) }
             }
         }
     }

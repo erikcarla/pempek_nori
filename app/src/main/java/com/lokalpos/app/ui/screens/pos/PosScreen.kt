@@ -1,7 +1,9 @@
 package com.lokalpos.app.ui.screens.pos
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
@@ -15,16 +17,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.lokalpos.app.ui.theme.SuccessGreen
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,19 +61,8 @@ fun PosScreen(
     if (state.showTicketDialog) {
         SaveTicketDialog(
             currentTicketName = state.currentTicketName,
-            duplicateError = state.ticketDuplicateError,
-            suggestedName = state.ticketSuggestedName,
             onSave = { viewModel.saveTicket(it) },
-            onDismiss = { viewModel.hideTicketDialog(); viewModel.clearTicketError() }
-        )
-    }
-
-    state.editingCartItem?.let { cartItem ->
-        QuantityEditorDialog(
-            cartItem = cartItem,
-            settings = settings,
-            onUpdate = { qty -> viewModel.updateCartQuantity(cartItem.product.id, qty) },
-            onDismiss = { viewModel.hideQuantityEditor() }
+            onDismiss = { viewModel.hideTicketDialog() }
         )
     }
 
@@ -78,6 +73,49 @@ fun PosScreen(
             onLoad = { viewModel.loadTicket(it) },
             onDelete = { viewModel.deleteTicket(it) },
             onDismiss = { viewModel.hideTicketList() }
+        )
+    }
+
+    // Duplicate ticket warning dialog
+    state.duplicateTicketWarning?.let { warning ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDuplicateWarning() },
+            title = { Text("Nama Meja Duplikat") },
+            text = {
+                Column {
+                    Text(warning)
+                    state.suggestedTicketName?.let { suggested ->
+                        Spacer(Modifier.height(8.dp))
+                        Text("Gunakan nama \"$suggested\"?")
+                    }
+                }
+            },
+            confirmButton = {
+                state.suggestedTicketName?.let {
+                    Button(onClick = { viewModel.useSuggestedTicketName() }) {
+                        Text("Gunakan")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissDuplicateWarning() }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
+
+    // Quantity edit dialog
+    if (state.showQuantityDialog && state.editingCartItem != null) {
+        QuantityEditDialog(
+            cartItem = state.editingCartItem!!,
+            settings = settings,
+            onUpdateQuantity = { productId, qty -> viewModel.updateQuantityAndClose(productId, qty) },
+            onDelete = { productId ->
+                viewModel.removeFromCart(productId)
+                viewModel.hideQuantityDialog()
+            },
+            onDismiss = { viewModel.hideQuantityDialog() }
         )
     }
 
@@ -141,7 +179,7 @@ private fun TabletLayout(
     viewModel: PosViewModel
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
-        // Left: Products 70%
+        // Left: Products
         Column(
             modifier = Modifier
                 .weight(0.7f)
@@ -152,7 +190,7 @@ private fun TabletLayout(
 
         VerticalDivider()
 
-        // Right: Cart 30%
+        // Right: Cart
         Column(
             modifier = Modifier
                 .weight(0.3f)
@@ -281,7 +319,7 @@ private fun TabletCheckoutPanel(
 
         Text(
             "TOTAL: ${settings.formatCurrency(state.total)}",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
@@ -424,6 +462,13 @@ private fun PhoneCheckoutView(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+        if (state.taxAmount > 0) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
+                Text(settings.formatCurrency(state.taxAmount))
+            }
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(
@@ -475,14 +520,18 @@ private fun PhoneCheckoutView(
 
 // ========================= SHARED COMPONENTS =========================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProductPanel(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
+    var showSearch by remember { mutableStateOf(false) }
+    var categoryDropdownExpanded by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        // Category dropdown + Search in one row
+        // Category dropdown and search in same row
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -490,112 +539,103 @@ private fun ProductPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (state.showSearchMode) {
+            if (showSearch) {
+                // Search mode
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { viewModel.searchProducts(it) },
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     placeholder = { Text("Cari produk...", fontSize = 14.sp) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Filled.Search, null, Modifier.size(20.dp)) },
                     trailingIcon = {
-                        IconButton(onClick = { viewModel.toggleSearchMode(); viewModel.searchProducts("") }) {
-                            Icon(Icons.Filled.Close, "Tutup")
+                        IconButton(onClick = {
+                            viewModel.searchProducts("")
+                            showSearch = false
+                        }) {
+                            Icon(Icons.Filled.Close, "Tutup", Modifier.size(20.dp))
                         }
-                    }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(24.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium
                 )
             } else {
-                LazyRow(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Category dropdown
+                ExposedDropdownMenuBox(
+                    expanded = categoryDropdownExpanded,
+                    onExpandedChange = { categoryDropdownExpanded = it },
+                    modifier = Modifier.weight(1f)
                 ) {
-                    item {
-                        FilterChip(
-                            selected = state.selectedCategoryId == null,
-                            onClick = { viewModel.selectCategory(null) },
-                            label = { Text("Semua") }
+                    OutlinedTextField(
+                        value = state.categories.find { it.id == state.selectedCategoryId }?.name ?: "Semua Kategori",
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                            .height(48.dp),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
+                        shape = RoundedCornerShape(24.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(
+                        expanded = categoryDropdownExpanded,
+                        onDismissRequest = { categoryDropdownExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Semua Kategori") },
+                            onClick = {
+                                viewModel.selectCategory(null)
+                                categoryDropdownExpanded = false
+                            },
+                            leadingIcon = {
+                                if (state.selectedCategoryId == null) {
+                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                }
+                            }
                         )
-                    }
-                    items(state.categories) { category ->
-                        FilterChip(
-                            selected = state.selectedCategoryId == category.id,
-                            onClick = { viewModel.selectCategory(category.id) },
-                            label = { Text(category.name) }
-                        )
+                        state.categories.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.name) },
+                                onClick = {
+                                    viewModel.selectCategory(category.id)
+                                    categoryDropdownExpanded = false
+                                },
+                                leadingIcon = {
+                                    if (state.selectedCategoryId == category.id) {
+                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
-                IconButton(onClick = { viewModel.toggleSearchMode() }) {
+
+                // Search button
+                IconButton(
+                    onClick = { showSearch = true }
+                ) {
                     Icon(Icons.Filled.Search, "Cari")
                 }
             }
         }
 
-        Spacer(Modifier.height(4.dp))
-
-        // Product grid or list
-        if (settings.productDisplayMode == "list") {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(state.products, key = { it.id }) { product ->
-                    ProductListItemCompact(
-                        product = product,
-                        settings = settings,
-                        onClick = { viewModel.addToCart(product) }
-                    )
-                }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 100.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(state.products, key = { it.id }) { product ->
-                    ProductGridItem(
-                        product = product,
-                        currencySymbol = settings.currencySymbol,
-                        onClick = { viewModel.addToCart(product) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProductListItemCompact(
-    product: com.lokalpos.app.data.entity.Product,
-    settings: com.lokalpos.app.util.SettingsManager,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Product grid
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 100.dp),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    product.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    settings.formatCurrency(product.price),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
+            items(state.products, key = { it.id }) { product ->
+                ProductGridItem(
+                    product = product,
+                    currencySymbol = settings.currencySymbol,
+                    onClick = { viewModel.addToCart(product) }
                 )
             }
         }
@@ -629,11 +669,12 @@ private fun ProductGridItem(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp
+                lineHeight = 14.sp,
+                fontWeight = FontWeight.Medium
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "$currencySymbol ${"%,d".format(product.price.toLong()).replace(",", ".")}",
+                text = "$currencySymbol%,d".format(product.price.toLong()),
                 style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -654,18 +695,53 @@ private fun CartItemRow(
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp)) {
-        Row(
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    val deleteThreshold = -100f
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Delete background
+        if (offsetX < 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .matchParentSize()
+                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    Icons.Filled.Delete,
+                    contentDescription = "Hapus",
+                    tint = Color.White,
+                    modifier = Modifier.padding(end = 16.dp)
+                )
+            }
+        }
+
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .offset { IntOffset(offsetX.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (offsetX < deleteThreshold) {
+                                viewModel.removeFromCart(cartItem.product.id)
+                            }
+                            offsetX = 0f
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            offsetX = (offsetX + dragAmount).coerceIn(-150f, 0f)
+                        }
+                    )
+                }
+                .clickable { viewModel.showQuantityDialog(cartItem) },
+            shape = RoundedCornerShape(8.dp)
         ) {
             Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .clickable { viewModel.showQuantityEditor(cartItem) },
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -685,18 +761,7 @@ private fun CartItemRow(
                 Text(
                     settings.formatCurrency(cartItem.subtotal),
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-            IconButton(
-                onClick = { viewModel.removeFromCart(cartItem.product.id) },
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    Icons.Filled.Delete,
-                    "Hapus",
-                    tint = MaterialTheme.colorScheme.error
+                    fontSize = 13.sp
                 )
             }
         }
@@ -735,76 +800,18 @@ private fun CashPaymentInput(
             ((state.total / 100000).toInt() + 1) * 100000.0
         ).distinct().take(4)
         quickAmounts.forEach { amount ->
-            val amtStr = "%,d".format(amount.toLong()).replace(",", ".")
             OutlinedButton(
-                onClick = { viewModel.setAmountPaid(amtStr) },
+                onClick = { viewModel.setAmountPaid("%,.0f".format(amount).replace(",", "")) },
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(4.dp)
             ) {
-                Text(amtStr, fontSize = 11.sp)
+                Text("%,.0f".format(amount), fontSize = 11.sp)
             }
         }
     }
 }
 
 // ========================= DIALOGS =========================
-
-@Composable
-private fun QuantityEditorDialog(
-    cartItem: CartItem,
-    settings: com.lokalpos.app.util.SettingsManager,
-    onUpdate: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var qty by remember(cartItem) { mutableStateOf(cartItem.quantity) }
-    fun applyQty(newQty: Int) {
-        val n = newQty.coerceIn(1, 9999)
-        qty = n
-        onUpdate(n)
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(cartItem.product.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "${cartItem.quantity} x ${settings.formatCurrency(cartItem.product.price)}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    settings.formatCurrency(cartItem.product.price * qty),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    IconButton(onClick = { applyQty(qty - 1) }) {
-                        Icon(Icons.Filled.Remove, "Kurang")
-                    }
-                    OutlinedTextField(
-                        value = qty.toString(),
-                        onValueChange = { v ->
-                            val n = v.toIntOrNull()
-                            if (n != null && n in 1..9999) applyQty(n)
-                        },
-                        modifier = Modifier.widthIn(min = 64.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-                    IconButton(onClick = { applyQty(qty + 1) }) {
-                        Icon(Icons.Filled.Add, "Tambah")
-                    }
-                }
-            }
-        },
-        confirmButton = { Button(onClick = onDismiss) { Text("Selesai") } }
-    )
-}
 
 @Composable
 private fun PaymentSuccessDialog(
@@ -820,9 +827,18 @@ private fun PaymentSuccessDialog(
         icon = {
             Icon(Icons.Filled.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(48.dp))
         },
-        title = { Text("Pembayaran Berhasil!", textAlign = TextAlign.Center) },
+        title = {
+            Text(
+                "Pembayaran Berhasil!",
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
         text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Text("No: ${transaction.receiptNumber}")
                 Text(
                     settings.formatCurrency(transaction.totalAmount),
@@ -836,13 +852,22 @@ private fun PaymentSuccessDialog(
             }
         },
         confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onPrint) {
-                    Icon(Icons.Filled.Print, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Cetak Struk")
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.End
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = onPrint) {
+                        Icon(Icons.Filled.Print, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Cetak Struk")
+                    }
+                    Button(onClick = onDismiss) {
+                        Text("Selesai")
+                    }
                 }
-                Button(onClick = onDismiss) { Text("Selesai") }
             }
         }
     )
@@ -851,46 +876,25 @@ private fun PaymentSuccessDialog(
 @Composable
 private fun SaveTicketDialog(
     currentTicketName: String?,
-    duplicateError: String?,
-    suggestedName: String?,
     onSave: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var tableName by remember(currentTicketName, suggestedName) {
-        mutableStateOf(suggestedName ?: currentTicketName ?: "")
-    }
-    LaunchedEffect(suggestedName) {
-        if (suggestedName != null) tableName = suggestedName
-    }
+    var tableName by remember { mutableStateOf(currentTicketName ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Simpan ke Meja") },
         text = {
-            Column {
-                if (duplicateError != null) {
-                    Text(
-                        duplicateError,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
-                OutlinedTextField(
-                    value = tableName,
-                    onValueChange = { tableName = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Nama Meja") },
-                    placeholder = { Text("cth: Meja 1, VIP, dll") },
-                    singleLine = true,
-                    isError = duplicateError != null
-                )
-            }
+            OutlinedTextField(
+                value = tableName,
+                onValueChange = { tableName = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Nama Meja") },
+                placeholder = { Text("cth: Meja 1, VIP, dll") },
+                singleLine = true
+            )
         },
         confirmButton = {
-            Button(
-                onClick = { if (tableName.isNotBlank()) onSave(tableName.trim()) },
-                enabled = tableName.isNotBlank()
-            ) {
+            Button(onClick = { if (tableName.isNotBlank()) onSave(tableName.trim()) }, enabled = tableName.isNotBlank()) {
                 Text("Simpan")
             }
         },
@@ -949,5 +953,127 @@ private fun TicketListDialog(
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Tutup") } }
+    )
+}
+
+@Composable
+private fun QuantityEditDialog(
+    cartItem: CartItem,
+    settings: com.lokalpos.app.util.SettingsManager,
+    onUpdateQuantity: (Long, Int) -> Unit,
+    onDelete: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var quantity by remember { mutableStateOf(cartItem.quantity) }
+    var manualInput by remember { mutableStateOf(cartItem.quantity.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                cartItem.product.name,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Price info
+                Text(
+                    "${quantity} x ${settings.formatCurrency(cartItem.product.price)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    settings.formatCurrency(cartItem.product.price * quantity),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                // Quantity controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilledIconButton(
+                        onClick = {
+                            if (quantity > 1) {
+                                quantity--
+                                manualInput = quantity.toString()
+                            }
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Filled.Remove, "Kurang")
+                    }
+
+                    Spacer(Modifier.width(16.dp))
+
+                    OutlinedTextField(
+                        value = manualInput,
+                        onValueChange = { value ->
+                            manualInput = value.filter { it.isDigit() }
+                            manualInput.toIntOrNull()?.let {
+                                if (it > 0) quantity = it
+                            }
+                        },
+                        modifier = Modifier.width(80.dp),
+                        textStyle = MaterialTheme.typography.titleLarge.copy(
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+
+                    Spacer(Modifier.width(16.dp))
+
+                    FilledIconButton(
+                        onClick = {
+                            quantity++
+                            manualInput = quantity.toString()
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, "Tambah")
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Delete button
+                OutlinedButton(
+                    onClick = { onDelete(cartItem.product.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Filled.Delete, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Hapus Item")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onUpdateQuantity(cartItem.product.id, quantity) }
+            ) {
+                Text("Simpan")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+        }
     )
 }

@@ -93,12 +93,25 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         setFilter("Bulan Ini", start, todayEnd())
     }
 
-    fun filterAll() {
-        setFilter("Semua", 0L, System.currentTimeMillis())
-    }
+    fun filterCustomRange(startMillis: Long, endMillis: Long) {
+        // Adjust start to beginning of day
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = startMillis
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
 
-    fun filterCustomRange(startTime: Long, endTime: Long) {
-        setFilter("Periode Lainnya", startTime, endTime)
+        // Adjust end to end of day
+        cal.timeInMillis = endMillis
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val end = cal.timeInMillis
+
+        setFilter("Periode Lainnya", start, end)
     }
 
     fun showDetail(transaction: Transaction) {

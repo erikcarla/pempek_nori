@@ -40,6 +40,11 @@ class TransactionCleanupWorker(
                 1, TimeUnit.DAYS
             )
                 .setInitialDelay(1, TimeUnit.HOURS)
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiresBatteryNotLow(true)
+                        .build()
+                )
                 .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(

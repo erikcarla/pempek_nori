@@ -32,16 +32,6 @@ fun HistoryScreen(
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("id", "ID")) }
     var showDateRangePicker by remember { mutableStateOf(false) }
 
-    if (showDateRangePicker) {
-        DateRangePickerDialog(
-            onConfirm = { start, end ->
-                viewModel.filterCustomRange(start, end)
-                showDateRangePicker = false
-            },
-            onDismiss = { showDateRangePicker = false }
-        )
-    }
-
     if (state.showDetail && state.selectedTransaction != null) {
         TransactionDetailDialog(
             transaction = state.selectedTransaction!!,
@@ -51,6 +41,16 @@ fun HistoryScreen(
             onPrint = { viewModel.reprintReceipt() },
             onRefund = { viewModel.refundTransaction(state.selectedTransaction!!.id) },
             onDismiss = { viewModel.hideDetail() }
+        )
+    }
+
+    if (showDateRangePicker) {
+        DateRangePickerDialog(
+            onConfirm = { startMillis, endMillis ->
+                viewModel.filterCustomRange(startMillis, endMillis)
+                showDateRangePicker = false
+            },
+            onDismiss = { showDateRangePicker = false }
         )
     }
 
@@ -105,7 +105,10 @@ fun HistoryScreen(
                     FilterChip(
                         selected = state.filterLabel == "Periode Lainnya",
                         onClick = { showDateRangePicker = true },
-                        label = { Text("Periode Lainnya") }
+                        label = { Text("Periode Lainnya") },
+                        trailingIcon = {
+                            Icon(Icons.Filled.DateRange, null, Modifier.size(16.dp))
+                        }
                     )
                 }
             }
@@ -250,6 +253,10 @@ private fun TransactionDetailDialog(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Subtotal")
+                    Text(settings.formatCurrency(transaction.subtotal))
+                }
                 if (transaction.taxAmount > 0) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("PB1")
@@ -296,47 +303,64 @@ private fun DateRangePickerDialog(
     onConfirm: (Long, Long) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val cal = Calendar.getInstance()
-    var startDate by remember { mutableStateOf<Long?>(cal.timeInMillis) }
-    var endDate by remember { mutableStateOf<Long?>(cal.timeInMillis) }
-    val startPickerState = rememberDatePickerState(initialSelectedDateMillis = startDate)
-    var showEndPicker by remember { mutableStateOf(false) }
+    val dateRangePickerState = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L), // 1 week ago
+        initialSelectedEndDateMillis = System.currentTimeMillis()
+    )
 
-    if (!showEndPicker) {
-        DatePickerDialog(
-            onDismissRequest = onDismiss,
-            confirmButton = {
-                Button(onClick = {
-                    startDate = startPickerState.selectedDateMillis
-                    showEndPicker = true
-                }) { Text("Lanjut") }
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = {
+                    val start = dateRangePickerState.selectedStartDateMillis
+                    val end = dateRangePickerState.selectedEndDateMillis
+                    if (start != null && end != null) {
+                        onConfirm(start, end)
+                    }
+                },
+                enabled = dateRangePickerState.selectedStartDateMillis != null &&
+                         dateRangePickerState.selectedEndDateMillis != null
+            ) {
+                Text("Pilih")
             }
-        ) {
-            DatePicker(
-                state = startPickerState,
-                title = { Text("Tanggal Mulai", modifier = Modifier.padding(24.dp, 16.dp)) }
-            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
         }
-    } else {
-        val endPickerState = rememberDatePickerState(
-            initialSelectedDateMillis = endDate ?: startDate
+    ) {
+        DateRangePicker(
+            state = dateRangePickerState,
+            title = {
+                Text(
+                    "Pilih Periode",
+                    modifier = Modifier.padding(start = 24.dp, top = 16.dp),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            headline = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale("id", "ID"))
+                    val startText = dateRangePickerState.selectedStartDateMillis?.let {
+                        dateFormat.format(Date(it))
+                    } ?: "Tanggal Mulai"
+                    val endText = dateRangePickerState.selectedEndDateMillis?.let {
+                        dateFormat.format(Date(it))
+                    } ?: "Tanggal Akhir"
+                    Text(startText)
+                    Text("-")
+                    Text(endText)
+                }
+            },
+            showModeToggle = false,
+            modifier = Modifier.heightIn(max = 500.dp)
         )
-        DatePickerDialog(
-            onDismissRequest = onDismiss,
-            confirmButton = {
-                Button(onClick = {
-                    val startMillis = startDate ?: endPickerState.selectedDateMillis ?: System.currentTimeMillis()
-                    val start = Calendar.getInstance().apply { timeInMillis = startMillis; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
-                    val endMillis = endPickerState.selectedDateMillis ?: start
-                    val end = Calendar.getInstance().apply { timeInMillis = endMillis; set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59); set(Calendar.MILLISECOND, 999) }.timeInMillis
-                    onConfirm(start, end)
-                }) { Text("Terapkan") }
-            }
-        ) {
-            DatePicker(
-                state = endPickerState,
-                title = { Text("Tanggal Akhir", modifier = Modifier.padding(24.dp, 16.dp)) }
-            )
-        }
     }
 }

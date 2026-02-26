@@ -2,12 +2,37 @@ package com.lokalpos.app.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlin.math.roundToLong
 
 class SettingsManager(context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("lokalpos_settings", Context.MODE_PRIVATE)
+
+    private val gson = Gson()
+
+    // Password protection (default: IkanKakap46)
+    var appPassword: String
+        get() = prefs.getString("app_password", "IkanKakap46") ?: "IkanKakap46"
+        set(value) = prefs.edit().putString("app_password", value).apply()
+
+    fun validatePassword(password: String): Boolean {
+        return password == appPassword
+    }
+
+    fun changePassword(oldPassword: String, newPassword: String): Boolean {
+        if (oldPassword != appPassword) return false
+        if (newPassword.isBlank()) return false
+        appPassword = newPassword
+        return true
+    }
+
+    // Display mode: "grid" or "list"
+    var displayMode: String
+        get() = prefs.getString("display_mode", "grid") ?: "grid"
+        set(value) = prefs.edit().putString("display_mode", value).apply()
 
     var storeName: String
         get() = prefs.getString("store_name", "Pempek Nori") ?: "Pempek Nori"
@@ -61,21 +86,13 @@ class SettingsManager(context: Context) {
         get() = prefs.getInt("receipt_width", 33)
         set(value) = prefs.edit().putInt("receipt_width", value).apply()
 
-    var appPassword: String
-        get() = prefs.getString("app_password", "IkanKakap46") ?: "IkanKakap46"
-        set(value) = prefs.edit().putString("app_password", value).apply()
+    var emailReportEnabled: Boolean
+        get() = prefs.getBoolean("email_report_enabled", false)
+        set(value) = prefs.edit().putBoolean("email_report_enabled", value).apply()
 
     var emailReportAddress: String
         get() = prefs.getString("email_report_address", "ribka.apriliana.09@gmail.com") ?: "ribka.apriliana.09@gmail.com"
         set(value) = prefs.edit().putString("email_report_address", value).apply()
-
-    var productDisplayMode: String
-        get() = prefs.getString("product_display_mode", "grid") ?: "grid"
-        set(value) = prefs.edit().putString("product_display_mode", value).apply()
-
-    var emailReportEnabled: Boolean
-        get() = prefs.getBoolean("email_report_enabled", false)
-        set(value) = prefs.edit().putBoolean("email_report_enabled", value).apply()
 
     var emailSenderAddress: String
         get() = prefs.getString("email_sender_address", "") ?: ""
@@ -86,8 +103,29 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putString("email_sender_password", value).apply()
 
     var paymentMethods: Set<String>
-        get() = prefs.getStringSet("payment_methods", setOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")) ?: setOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")
+        get() = prefs.getStringSet("payment_methods", setOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")) ?: setOf("Tunai")
         set(value) = prefs.edit().putStringSet("payment_methods", value).apply()
+
+    // Default payment method
+    var defaultPaymentMethod: String
+        get() = prefs.getString("default_payment_method", "QRIS BNI") ?: "QRIS BNI"
+        set(value) = prefs.edit().putString("default_payment_method", value).apply()
+
+    // Persisted tickets (JSON)
+    fun saveTickets(tickets: Map<String, String>) {
+        val json = gson.toJson(tickets)
+        prefs.edit().putString("saved_tickets", json).apply()
+    }
+
+    fun loadTickets(): Map<String, String> {
+        val json = prefs.getString("saved_tickets", null) ?: return emptyMap()
+        return try {
+            val type = object : TypeToken<Map<String, String>>() {}.type
+            gson.fromJson(json, type)
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
 
     fun formatCurrency(amount: Double): String {
         val rounded = amount.roundToLong()

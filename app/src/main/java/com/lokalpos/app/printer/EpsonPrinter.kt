@@ -214,13 +214,16 @@ class EpsonPrinter(private val context: Context) {
 
         addDash()
 
+        // Remove subtotal - go directly to discount if present
         if (transaction.discountAmount > 0) {
             val discLabel = if (transaction.discountPercent > 0)
                 "Diskon (${transaction.discountPercent.toInt()}%)" else "Diskon"
             addLine(padLeftRight(discLabel, "-${formatNum(transaction.discountAmount)}", width))
         }
         if (transaction.taxAmount > 0) {
-            addLine(padLeftRight("PB1", formatNum(transaction.taxAmount), width))
+            val taxLabel = if (transaction.taxPercent > 0)
+                "PB1 (${transaction.taxPercent.toInt()}%)" else "PB1"
+            addLine(padLeftRight(taxLabel, formatNum(transaction.taxAmount), width))
         }
 
         addDash()
@@ -250,12 +253,11 @@ class EpsonPrinter(private val context: Context) {
     }
 
     private fun formatNum(value: Double): String {
-        val formatted = if (value == value.toLong().toDouble()) {
-            "%,d".format(value.toLong())
+        return if (value == value.toLong().toDouble()) {
+            "%,.0f".format(value)
         } else {
             "%,.2f".format(value)
         }
-        return formatted.replace(",", ".")
     }
 
     private fun padLeftRight(left: String, right: String, width: Int): String {

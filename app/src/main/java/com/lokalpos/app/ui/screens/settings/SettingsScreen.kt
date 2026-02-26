@@ -19,7 +19,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lokalpos.app.LokalPosApp
 import com.lokalpos.app.printer.EpsonPrinter
+import com.lokalpos.app.ui.theme.SuccessGreen
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,18 +45,15 @@ fun SettingsScreen(onBack: () -> Unit) {
     var printerEnabled by remember { mutableStateOf(settings.printerEnabled) }
     var receiptWidth by remember { mutableStateOf(settings.receiptWidth.toString()) }
     var emailReportEnabled by remember { mutableStateOf(settings.emailReportEnabled) }
-    var emailReportAddress by remember { mutableStateOf(settings.emailReportAddress) }
     var emailSenderAddress by remember { mutableStateOf(settings.emailSenderAddress) }
     var emailSenderPassword by remember { mutableStateOf(settings.emailSenderPassword) }
-    var productDisplayMode by remember { mutableStateOf(settings.productDisplayMode) }
-    var appPassword by remember { mutableStateOf(settings.appPassword) }
-    var showPasswordSection by remember { mutableStateOf(false) }
-    var oldPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var showEmailPassword by remember { mutableStateOf(false) }
-    var emailPassword by remember { mutableStateOf("") }
-    var paymentMethodsSet by remember { mutableStateOf(settings.paymentMethods) }
+    var displayMode by remember { mutableStateOf(settings.displayMode) }
+
+    // Dialog states
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showEmailRecipientDialog by remember { mutableStateOf(false) }
+    var showDashboardDialog by remember { mutableStateOf(false) }
+    var dashboardUnlocked by remember { mutableStateOf(false) }
 
     fun save() {
         settings.storeName = storeName
@@ -69,21 +69,70 @@ fun SettingsScreen(onBack: () -> Unit) {
         settings.printerEnabled = printerEnabled
         settings.receiptWidth = receiptWidth.toIntOrNull() ?: 33
         settings.emailReportEnabled = emailReportEnabled
-        if (emailReportAddress != settings.emailReportAddress) {
-            if (emailPassword == settings.appPassword) {
-                settings.emailReportAddress = emailReportAddress
-            } else {
-                Toast.makeText(context, "Password salah, email penerima tidak diubah", Toast.LENGTH_LONG).show()
-            }
-        }
         settings.emailSenderAddress = emailSenderAddress
         settings.emailSenderPassword = emailSenderPassword
-        settings.productDisplayMode = productDisplayMode
-        settings.paymentMethods = paymentMethodsSet
-        if (newPassword.isNotBlank() && newPassword == confirmPassword && oldPassword == settings.appPassword) {
-            settings.appPassword = newPassword
-        }
+        settings.displayMode = displayMode
         Toast.makeText(context, "Pengaturan disimpan", Toast.LENGTH_SHORT).show()
+    }
+
+    // Password change dialog
+    if (showPasswordDialog) {
+        ChangePasswordDialog(
+            onConfirm = { oldPwd, newPwd ->
+                if (settings.changePassword(oldPwd, newPwd)) {
+                    Toast.makeText(context, "Password berhasil diubah", Toast.LENGTH_SHORT).show()
+                    showPasswordDialog = false
+                } else {
+                    Toast.makeText(context, "Password lama salah", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { showPasswordDialog = false }
+        )
+    }
+
+    // Email recipient change dialog
+    if (showEmailRecipientDialog) {
+        ChangeEmailRecipientDialog(
+            currentEmail = settings.emailReportAddress,
+            onConfirm = { password, newEmail ->
+                if (settings.validatePassword(password)) {
+                    settings.emailReportAddress = newEmail
+                    Toast.makeText(context, "Email penerima berhasil diubah", Toast.LENGTH_SHORT).show()
+                    showEmailRecipientDialog = false
+                } else {
+                    Toast.makeText(context, "Password salah", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { showEmailRecipientDialog = false }
+        )
+    }
+
+    // Dashboard password dialog
+    if (showDashboardDialog && !dashboardUnlocked) {
+        PasswordInputDialog(
+            title = "Masukkan Password",
+            onConfirm = { password ->
+                if (settings.validatePassword(password)) {
+                    dashboardUnlocked = true
+                } else {
+                    Toast.makeText(context, "Password salah", Toast.LENGTH_SHORT).show()
+                    showDashboardDialog = false
+                }
+            },
+            onDismiss = { showDashboardDialog = false }
+        )
+    }
+
+    // Dashboard dialog
+    if (dashboardUnlocked) {
+        DashboardDialog(
+            app = app,
+            settings = settings,
+            onDismiss = {
+                dashboardUnlocked = false
+                showDashboardDialog = false
+            }
+        )
     }
 
     Scaffold(
@@ -111,6 +160,58 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Dashboard button
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                onClick = { showDashboardDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Dashboard, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Dashboard", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text("Lihat statistik penjualan", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                        }
+                    }
+                    Icon(Icons.Filled.Lock, null, tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                }
+            }
+
+            HorizontalDivider()
+
+            SectionHeader("Tampilan", Icons.Filled.ViewModule)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Tampilan Produk", style = MaterialTheme.typography.bodyLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = displayMode == "grid",
+                        onClick = { displayMode = "grid" },
+                        label = { Text("Grid") },
+                        leadingIcon = { Icon(Icons.Filled.GridView, null, Modifier.size(16.dp)) }
+                    )
+                    FilterChip(
+                        selected = displayMode == "list",
+                        onClick = { displayMode = "list" },
+                        label = { Text("List") },
+                        leadingIcon = { Icon(Icons.Filled.ViewList, null, Modifier.size(16.dp)) }
+                    )
+                }
+            }
+
+            HorizontalDivider()
+
             SectionHeader("Informasi Toko", Icons.Filled.Store)
             OutlinedTextField(
                 value = storeName, onValueChange = { storeName = it },
@@ -156,14 +257,14 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 Switch(checked = printerEnabled, onCheckedChange = { printerEnabled = it })
             }
-            OutlinedTextField(
-                value = receiptWidth, onValueChange = { receiptWidth = it },
-                modifier = Modifier.fillMaxWidth(), label = { Text("Lebar Struk (karakter)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true, shape = RoundedCornerShape(12.dp),
-                supportingText = { Text("Default 33") }
-            )
             if (printerEnabled) {
+                OutlinedTextField(
+                    value = receiptWidth, onValueChange = { receiptWidth = it },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("Lebar Struk (karakter)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true, shape = RoundedCornerShape(12.dp),
+                    supportingText = { Text("42 untuk Font A, 56 untuk Font B") }
+                )
                 Button(
                     onClick = {
                         scope.launch {
@@ -181,27 +282,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Icon(Icons.Filled.Print, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Test Koneksi Printer")
-                }
-            }
-
-            HorizontalDivider()
-
-            SectionHeader("Metode Pembayaran", Icons.Filled.Payment)
-            val allMethods = listOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")
-            allMethods.forEach { method ->
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(method)
-                    Checkbox(
-                        checked = paymentMethodsSet.contains(method),
-                        onCheckedChange = { checked ->
-                            paymentMethodsSet = if (checked) paymentMethodsSet + method else paymentMethodsSet - method
-                            settings.paymentMethods = paymentMethodsSet
-                        }
-                    )
                 }
             }
 
@@ -244,25 +324,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Kirim Laporan Harian", style = MaterialTheme.typography.bodyLarge)
-                    Text("Ke: $emailReportAddress", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Ke: ${settings.emailReportAddress}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = emailReportEnabled, onCheckedChange = { emailReportEnabled = it })
             }
+            OutlinedButton(
+                onClick = { showEmailRecipientDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Filled.Edit, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Ubah Email Penerima")
+            }
             if (emailReportEnabled) {
-                OutlinedTextField(
-                    value = emailReportAddress, onValueChange = { emailReportAddress = it },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("Email Penerima") },
-                    singleLine = true, shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value = emailPassword, onValueChange = { emailPassword = it },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("Password (untuk ubah email penerima)") },
-                    singleLine = true, shape = RoundedCornerShape(12.dp),
-                    visualTransformation = PasswordVisualTransformation(),
-                    supportingText = { Text("Masukkan password untuk mengubah email penerima") }
-                )
                 OutlinedTextField(
                     value = emailSenderAddress, onValueChange = { emailSenderAddress = it },
                     modifier = Modifier.fillMaxWidth(), label = { Text("Email Pengirim (Gmail)") },
@@ -280,53 +356,14 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             HorizontalDivider()
 
-            SectionHeader("Tampilan Kasir", Icons.Filled.GridView)
-            Text("Tampilan produk", style = MaterialTheme.typography.bodyLarge)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilterChip(
-                    selected = productDisplayMode == "grid",
-                    onClick = { productDisplayMode = "grid" },
-                    label = { Text("Grid") }
-                )
-                FilterChip(
-                    selected = productDisplayMode == "list",
-                    onClick = { productDisplayMode = "list" },
-                    label = { Text("List") }
-                )
-            }
-
-            HorizontalDivider()
-
-            SectionHeader("Password", Icons.Filled.Lock)
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            SectionHeader("Keamanan", Icons.Filled.Security)
+            OutlinedButton(
+                onClick = { showPasswordDialog = true },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Ganti Password", style = MaterialTheme.typography.bodyLarge)
-                TextButton(onClick = { showPasswordSection = !showPasswordSection }) {
-                    Text(if (showPasswordSection) "Tutup" else "Ubah")
-                }
-            }
-            if (showPasswordSection) {
-                OutlinedTextField(
-                    value = oldPassword, onValueChange = { oldPassword = it },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("Password Lama") },
-                    singleLine = true, shape = RoundedCornerShape(12.dp),
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                OutlinedTextField(
-                    value = newPassword, onValueChange = { newPassword = it },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("Password Baru") },
-                    singleLine = true, shape = RoundedCornerShape(12.dp),
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                OutlinedTextField(
-                    value = confirmPassword, onValueChange = { confirmPassword = it },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("Konfirmasi Password Baru") },
-                    singleLine = true, shape = RoundedCornerShape(12.dp),
-                    visualTransformation = PasswordVisualTransformation()
-                )
+                Icon(Icons.Filled.Lock, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Ubah Password Aplikasi")
             }
 
             HorizontalDivider()
@@ -370,3 +407,268 @@ private fun SectionHeader(title: String, icon: androidx.compose.ui.graphics.vect
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
     }
 }
+
+@Composable
+private fun ChangePasswordDialog(
+    onConfirm: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var oldPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ubah Password") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = oldPassword,
+                    onValueChange = { oldPassword = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Password Lama") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = newPassword,
+                    onValueChange = { newPassword = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Password Baru") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = { confirmPassword = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Konfirmasi Password Baru") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    isError = confirmPassword.isNotEmpty() && confirmPassword != newPassword
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(oldPassword, newPassword) },
+                enabled = oldPassword.isNotBlank() && newPassword.isNotBlank() && newPassword == confirmPassword
+            ) {
+                Text("Simpan")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Batal") }
+        }
+    )
+}
+
+@Composable
+private fun ChangeEmailRecipientDialog(
+    currentEmail: String,
+    onConfirm: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var newEmail by remember { mutableStateOf(currentEmail) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ubah Email Penerima") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Masukkan password untuk mengubah email penerima laporan", style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = newEmail,
+                    onValueChange = { newEmail = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Email Penerima Baru") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(password, newEmail) },
+                enabled = password.isNotBlank() && newEmail.isNotBlank() && newEmail.contains("@")
+            ) {
+                Text("Simpan")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Batal") }
+        }
+    )
+}
+
+@Composable
+private fun PasswordInputDialog(
+    title: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(password) },
+                enabled = password.isNotBlank()
+            ) {
+                Text("Buka")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Batal") }
+        }
+    )
+}
+
+@Composable
+private fun DashboardDialog(
+    app: LokalPosApp,
+    settings: com.lokalpos.app.util.SettingsManager,
+    onDismiss: () -> Unit
+) {
+    var todaySales by remember { mutableStateOf(0.0) }
+    var todayTransactions by remember { mutableStateOf(0) }
+    var weekSales by remember { mutableStateOf(0.0) }
+    var weekTransactions by remember { mutableStateOf(0) }
+    var monthSales by remember { mutableStateOf(0.0) }
+    var monthTransactions by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        val repo = app.transactionRepository
+        val cal = Calendar.getInstance()
+
+        // Today
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val todayStart = cal.timeInMillis
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        val todayEnd = cal.timeInMillis
+
+        todaySales = repo.getTotalSales(todayStart, todayEnd)
+        todayTransactions = repo.getTransactionCount(todayStart, todayEnd)
+
+        // This week
+        cal.timeInMillis = System.currentTimeMillis()
+        cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        val weekStart = cal.timeInMillis
+
+        weekSales = repo.getTotalSales(weekStart, todayEnd)
+        weekTransactions = repo.getTransactionCount(weekStart, todayEnd)
+
+        // This month
+        cal.timeInMillis = System.currentTimeMillis()
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        val monthStart = cal.timeInMillis
+
+        monthSales = repo.getTotalSales(monthStart, todayEnd)
+        monthTransactions = repo.getTransactionCount(monthStart, todayEnd)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Dashboard, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("Dashboard")
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                DashboardCard(
+                    title = "Hari Ini",
+                    sales = settings.formatCurrency(todaySales),
+                    transactions = todayTransactions,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                DashboardCard(
+                    title = "Minggu Ini",
+                    sales = settings.formatCurrency(weekSales),
+                    transactions = weekTransactions,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                DashboardCard(
+                    title = "Bulan Ini",
+                    sales = settings.formatCurrency(monthSales),
+                    transactions = monthTransactions,
+                    color = SuccessGreen
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) { Text("Tutup") }
+        }
+    )
+}
+
+@Composable
+private fun DashboardCard(
+    title: String,
+    sales: String,
+    transactions: Int,
+    color: androidx.compose.ui.graphics.Color
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = color)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                sales,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Text(
+                "$transactions transaksi",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
