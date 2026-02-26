@@ -8,8 +8,11 @@ import com.lokalpos.app.data.entity.OpenTicketEntity
 import com.lokalpos.app.data.entity.Product
 import com.lokalpos.app.ui.screens.pos.CartItem
 import com.lokalpos.app.ui.screens.pos.OpenTicket
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 private data class CartItemJson(
     val productId: Long,
@@ -26,19 +29,18 @@ class OpenTicketRepository(
     private val gson = Gson()
     private val listType = object : TypeToken<List<CartItemJson>>() {}.type
 
-    fun getAllTickets(): Flow<Map<String, OpenTicket>> = flow {
-        openTicketDao.getAllFlow().collect { entities ->
-            emit(buildMap {
+    fun getAllTickets(): Flow<Map<String, OpenTicket>> =
+        openTicketDao.getAllFlow().map { entities ->
+            buildMap {
                 for (entity in entities) {
                     put(entity.tableName, entity.toOpenTicket())
                 }
-            })
-        }
-    }
+            }
+        }.flowOn(Dispatchers.IO)
 
-    suspend fun getAllTicketsSync(): Map<String, OpenTicket> {
+    suspend fun getAllTicketsSync(): Map<String, OpenTicket> = withContext(Dispatchers.IO) {
         val entities = openTicketDao.getAll()
-        return buildMap {
+        buildMap {
             for (entity in entities) {
                 put(entity.tableName, entity.toOpenTicket())
             }
@@ -60,7 +62,7 @@ class OpenTicketRepository(
         return OpenTicket(tableName = tableName, cart = cart, createdAt = createdAt)
     }
 
-    suspend fun saveTicket(tableName: String, cart: List<CartItem>) {
+    suspend fun saveTicket(tableName: String, cart: List<CartItem>) = withContext(Dispatchers.IO) {
         val items = cart.map {
             CartItemJson(
                 productId = it.product.id,
@@ -74,15 +76,15 @@ class OpenTicketRepository(
         openTicketDao.insert(OpenTicketEntity(tableName = tableName, cartJson = json))
     }
 
-    suspend fun deleteTicket(tableName: String) {
+    suspend fun deleteTicket(tableName: String) = withContext(Dispatchers.IO) {
         openTicketDao.deleteByTableName(tableName)
     }
 
-    suspend fun ticketExists(tableName: String): Boolean {
-        return openTicketDao.countByTableName(tableName) > 0
+    suspend fun ticketExists(tableName: String): Boolean = withContext(Dispatchers.IO) {
+        openTicketDao.countByTableName(tableName) > 0
     }
 
-    suspend fun replaceTicket(tableName: String, cart: List<CartItem>) {
+    suspend fun replaceTicket(tableName: String, cart: List<CartItem>) = withContext(Dispatchers.IO) {
         openTicketDao.deleteByTableName(tableName)
         saveTicket(tableName, cart)
     }

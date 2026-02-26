@@ -13,7 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -276,7 +275,7 @@ fun ProductEditScreen(
                             .clip(CircleShape)
                             .background(try { Color(android.graphics.Color.parseColor(hex)) } catch (_: Exception) { Color.Gray })
                             .clickable { viewModel.updateField { copy(color = hex) } },
-                        contentAlignment = Alignment.Center
+                        contentAlignment = androidx.compose.ui.Alignment.Center
                     ) {
                         if (state.color == hex) {
                             Icon(androidx.compose.material.icons.Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))

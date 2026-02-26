@@ -6,48 +6,65 @@ import com.lokalpos.app.data.dao.DailySales
 import com.lokalpos.app.data.dao.PaymentMethodSummary
 import com.lokalpos.app.data.entity.Transaction
 import com.lokalpos.app.data.entity.TransactionItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 
 class TransactionRepository(private val transactionDao: TransactionDao) {
 
-    fun getAllTransactions(): Flow<List<Transaction>> = transactionDao.getAll()
+    fun getAllTransactions(): Flow<List<Transaction>> =
+        transactionDao.getAll().flowOn(Dispatchers.IO)
 
     fun getTransactionsByDateRange(startTime: Long, endTime: Long): Flow<List<Transaction>> =
-        transactionDao.getByDateRange(startTime, endTime)
+        transactionDao.getByDateRange(startTime, endTime).flowOn(Dispatchers.IO)
 
-    suspend fun getTransactionById(id: Long): Transaction? = transactionDao.getById(id)
+    suspend fun getTransactionById(id: Long): Transaction? = withContext(Dispatchers.IO) {
+        transactionDao.getById(id)
+    }
 
     suspend fun getTransactionItems(transactionId: Long): List<TransactionItem> =
-        transactionDao.getItemsByTransaction(transactionId)
+        withContext(Dispatchers.IO) {
+            transactionDao.getItemsByTransaction(transactionId)
+        }
 
     suspend fun createTransaction(transaction: Transaction, items: List<TransactionItem>): Long =
-        transactionDao.insertTransactionWithItems(transaction, items)
+        withContext(Dispatchers.IO) {
+            transactionDao.insertTransactionWithItems(transaction, items)
+        }
 
-    suspend fun refundTransaction(id: Long) = transactionDao.updateStatus(id, "refunded")
+    suspend fun refundTransaction(id: Long) = withContext(Dispatchers.IO) {
+        transactionDao.updateStatus(id, "refunded")
+    }
 
-    suspend fun deleteOldTransactions(beforeTimestamp: Long): Int =
+    suspend fun deleteOldTransactions(beforeTimestamp: Long): Int = withContext(Dispatchers.IO) {
         transactionDao.deleteOlderThan(beforeTimestamp)
+    }
 
-    suspend fun generateReceiptNumber(): String {
+    suspend fun generateReceiptNumber(): String = withContext(Dispatchers.IO) {
         val maxNum = transactionDao.getMaxReceiptNumber() ?: 0
-        return "TRX-%05d".format(maxNum + 1)
+        "TRX-%05d".format(maxNum + 1)
     }
 
     suspend fun getTotalSales(startTime: Long, endTime: Long): Double =
-        transactionDao.getTotalSales(startTime, endTime)
+        withContext(Dispatchers.IO) { transactionDao.getTotalSales(startTime, endTime) }
 
     suspend fun getTransactionCount(startTime: Long, endTime: Long): Int =
-        transactionDao.getTransactionCount(startTime, endTime)
+        withContext(Dispatchers.IO) { transactionDao.getTransactionCount(startTime, endTime) }
 
     suspend fun getAverageSale(startTime: Long, endTime: Long): Double =
-        transactionDao.getAverageSale(startTime, endTime)
+        withContext(Dispatchers.IO) { transactionDao.getAverageSale(startTime, endTime) }
 
     suspend fun getDailySales(startTime: Long, endTime: Long): List<DailySales> =
-        transactionDao.getDailySales(startTime, endTime)
+        withContext(Dispatchers.IO) { transactionDao.getDailySales(startTime, endTime) }
 
     suspend fun getPaymentMethodSummary(startTime: Long, endTime: Long): List<PaymentMethodSummary> =
-        transactionDao.getPaymentMethodSummary(startTime, endTime)
+        withContext(Dispatchers.IO) {
+            transactionDao.getPaymentMethodSummary(startTime, endTime)
+        }
 
     suspend fun getAggregatedSalesItems(startTime: Long, endTime: Long): List<AggregatedSalesItem> =
-        transactionDao.getAggregatedSalesItems(startTime, endTime)
+        withContext(Dispatchers.IO) {
+            transactionDao.getAggregatedSalesItems(startTime, endTime)
+        }
 }

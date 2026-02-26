@@ -30,7 +30,6 @@ class LokalPosApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-
         database = AppDatabase.getInstance(this)
         productRepository = ProductRepository(database.productDao(), database.categoryDao())
         transactionRepository = TransactionRepository(database.transactionDao())
