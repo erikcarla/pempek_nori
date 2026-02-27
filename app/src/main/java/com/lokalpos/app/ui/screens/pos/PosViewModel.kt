@@ -9,6 +9,8 @@ import com.lokalpos.app.printer.EpsonPrinter
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+private fun String.normalizeAmount(): String = replace(",", "").replace(".", "").trim().ifBlank { "0" }
+
 data class CartItem(
     val product: Product,
     val quantity: Int = 1,
@@ -23,18 +25,13 @@ data class OpenTicket(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-data class SerializableCartItem(
-    val productId: Long,
-    val quantity: Int,
-    val notes: String
-)
-
 data class PosUiState(
     val products: List<Product> = emptyList(),
     val categories: List<Category> = emptyList(),
     val cart: List<CartItem> = emptyList(),
     val selectedCategoryId: Long? = null,
     val searchQuery: String = "",
+    val showSearchMode: Boolean = false,
     val showCheckout: Boolean = false,
     val paymentMethod: String = "QRIS BNI",
     val amountPaid: String = "",
@@ -50,10 +47,12 @@ data class PosUiState(
     val currentTicketName: String? = null,
     val showTicketDialog: Boolean = false,
     val showTicketList: Boolean = false,
+    val ticketDuplicateError: String? = null,
+    val ticketSuggestedName: String? = null,
     val duplicateTicketWarning: String? = null,
     val suggestedTicketName: String? = null,
-    val showQuantityDialog: Boolean = false,
-    val editingCartItem: CartItem? = null
+    val editingCartItem: CartItem? = null,
+    val showQuantityDialog: Boolean = false
 ) {
     val subtotal: Double get() = cart.sumOf { it.subtotal }
     val taxAmount: Double get() {
@@ -72,15 +71,13 @@ data class PosUiState(
         }
     }
     val changeAmount: Double get() {
-        val cleanAmount = amountPaid.replace(".", "").replace(",", "")
-        val paid = cleanAmount.toDoubleOrNull() ?: 0.0
+        val paid = amountPaid.normalizeAmount().toDoubleOrNull() ?: 0.0
         return if (paid > total) paid - total else 0.0
     }
     val canPay: Boolean get() {
         if (cart.isEmpty()) return false
         if (paymentMethod == "Tunai") {
-            val cleanAmount = amountPaid.replace(".", "").replace(",", "")
-            val paid = cleanAmount.toDoubleOrNull() ?: 0.0
+            val paid = amountPaid.normalizeAmount().toDoubleOrNull() ?: 0.0
             return paid >= total
         }
         return true
@@ -92,6 +89,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as LokalPosApp
     private val productRepo = app.productRepository
     private val transactionRepo = app.transactionRepository
+    private val openTicketRepo = app.openTicketRepository
     val settings = app.settingsManager
     private val printer = EpsonPrinter(application)
 
@@ -100,37 +98,15 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadData()
-        loadPersistedTickets()
+        loadOpenTickets()
     }
 
-    private fun loadPersistedTickets() {
+    private fun loadOpenTickets() {
         viewModelScope.launch {
-            val savedTicketsJson = settings.loadTickets()
-            val tickets = mutableMapOf<String, OpenTicket>()
-            savedTicketsJson.forEach { (name, json) ->
-                try {
-                    val cartItems = com.google.gson.Gson().fromJson(json, Array<SerializableCartItem>::class.java)
-                    // We need to resolve products, but if product doesn't exist, skip
-                    val cart = cartItems.mapNotNull { item ->
-                        val product = _uiState.value.products.find { it.id == item.productId }
-                        product?.let { CartItem(it, item.quantity, item.notes) }
-                    }
-                    if (cart.isNotEmpty()) {
-                        tickets[name] = OpenTicket(name, cart)
-                    }
-                } catch (_: Exception) {}
+            openTicketRepo.getAllTickets().collect { tickets ->
+                _uiState.update { it.copy(openTickets = tickets) }
             }
-            _uiState.update { it.copy(openTickets = tickets, paymentMethod = settings.defaultPaymentMethod) }
         }
-    }
-
-    private fun persistTickets() {
-        val ticketsJson = mutableMapOf<String, String>()
-        _uiState.value.openTickets.forEach { (name, ticket) ->
-            val items = ticket.cart.map { SerializableCartItem(it.product.id, it.quantity, it.notes) }
-            ticketsJson[name] = com.google.gson.Gson().toJson(items)
-        }
-        settings.saveTickets(ticketsJson)
     }
 
     private fun loadData() {
@@ -168,6 +144,16 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             flow.collect { products ->
                 _uiState.update { it.copy(products = products) }
             }
+        }
+    }
+
+    fun toggleSearchMode() {
+        _uiState.update {
+            val next = !it.showSearchMode
+            it.copy(showSearchMode = next, searchQuery = if (!next) "" else it.searchQuery)
+        }
+        if (!_uiState.value.showSearchMode) {
+            searchProducts("")
         }
     }
 
@@ -220,6 +206,27 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun showQuantityEditor(cartItem: CartItem) {
+        _uiState.update { it.copy(editingCartItem = cartItem) }
+    }
+
+    fun hideQuantityEditor() {
+        _uiState.update { it.copy(editingCartItem = null) }
+    }
+
+    fun showQuantityDialog(cartItem: CartItem) {
+        _uiState.update { it.copy(editingCartItem = cartItem, showQuantityDialog = true) }
+    }
+
+    fun hideQuantityDialog() {
+        _uiState.update { it.copy(showQuantityDialog = false, editingCartItem = null) }
+    }
+
+    fun updateQuantityAndClose(productId: Long, quantity: Int) {
+        updateCartQuantity(productId, quantity)
+        hideQuantityDialog()
+    }
+
     fun clearCart() {
         _uiState.update {
             it.copy(
@@ -236,7 +243,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { state ->
             val newState = state.copy(paymentMethod = method)
             if (method == "Tunai") {
-                newState.copy(amountPaid = "%,.0f".format(state.total).replace(",", ""))
+                val formatted = "%,d".format(state.total.toLong()).replace(",", ".")
+                newState.copy(amountPaid = formatted)
             } else {
                 newState.copy(amountPaid = "")
             }
@@ -244,18 +252,20 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setAmountPaid(amount: String) {
-        // Allow only digits and optional dots for thousands separator
-        val filtered = amount.filter { it.isDigit() || it == '.' }
-        _uiState.update { it.copy(amountPaid = filtered) }
+        _uiState.update { it.copy(amountPaid = amount) }
     }
 
     fun toggleCheckout() {
         _uiState.update { state ->
             val entering = !state.showCheckout
-            if (entering && state.paymentMethod == "Tunai") {
+            if (entering) {
+                val paymentMethods = settings.getPaymentMethodsList()
+                val defaultMethod = paymentMethods.firstOrNull() ?: "QRIS BNI"
+                val formatted = "%,d".format(state.total.toLong()).replace(",", ".")
                 state.copy(
                     showCheckout = true,
-                    amountPaid = "%,.0f".format(state.total).replace(",", "")
+                    paymentMethod = defaultMethod,
+                    amountPaid = if (defaultMethod == "Tunai") formatted else ""
                 )
             } else {
                 state.copy(showCheckout = !state.showCheckout)
@@ -284,8 +294,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 val totalWithTax = if (settings.taxInclusive) state.subtotal else state.subtotal + taxAmt
 
                 val paidAmount = if (state.paymentMethod == "Tunai") {
-                    val cleanAmount = state.amountPaid.replace(".", "").replace(",", "")
-                    cleanAmount.toDoubleOrNull() ?: totalWithTax
+                    state.amountPaid.normalizeAmount().toDoubleOrNull() ?: totalWithTax
                 } else {
                     totalWithTax
                 }
@@ -328,10 +337,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 val savedItems = transactionRepo.getTransactionItems(txId)
 
                 val ticketName = state.currentTicketName
-                val updatedTickets = if (ticketName != null) {
-                    state.openTickets - ticketName
-                } else {
-                    state.openTickets
+                if (ticketName != null) {
+                    openTicketRepo.deleteTicket(ticketName)
                 }
 
                 _uiState.update {
@@ -341,10 +348,9 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         completedItems = savedItems,
                         showSuccess = true,
                         showCheckout = false,
-                        openTickets = updatedTickets
+                        currentTicketName = null
                     )
                 }
-                persistTickets()
 
             } catch (e: Exception) {
                 _uiState.update {
@@ -410,41 +416,53 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         if (state.cart.isEmpty() || tableName.isBlank()) return
 
-        // Check for duplicate name (but allow overwriting if it's the current ticket being edited)
-        if (state.openTickets.containsKey(tableName) && state.currentTicketName != tableName) {
-            // Generate suggested name
-            var counter = 2
-            var suggestedName = "$tableName($counter)"
-            while (state.openTickets.containsKey(suggestedName)) {
-                counter++
-                suggestedName = "$tableName($counter)"
+        viewModelScope.launch {
+            val isUpdating = state.currentTicketName == tableName
+            val exists = openTicketRepo.ticketExists(tableName)
+
+            if (exists && !isUpdating) {
+                val existingKeys = openTicketRepo.getAllTicketsSync().keys
+                val suggested = suggestTicketName(tableName, existingKeys)
+                _uiState.update {
+                    it.copy(
+                        duplicateTicketWarning = "Sudah ada meja $tableName! Gunakan nama lain misal $suggested",
+                        suggestedTicketName = suggested
+                    )
+                }
+                return@launch
             }
+
+            if (isUpdating) {
+                openTicketRepo.replaceTicket(tableName, state.cart)
+            } else {
+                openTicketRepo.saveTicket(tableName, state.cart)
+            }
+
             _uiState.update {
                 it.copy(
-                    duplicateTicketWarning = "Sudah ada meja \"$tableName\"!",
-                    suggestedTicketName = suggestedName
+                    cart = emptyList(),
+                    currentTicketName = null,
+                    showTicketDialog = false,
+                    showCheckout = false,
+                    amountPaid = "",
+                    duplicateTicketWarning = null,
+                    suggestedTicketName = null
                 )
             }
-            return
         }
+    }
 
-        val ticket = OpenTicket(
-            tableName = tableName,
-            cart = state.cart
-        )
-        _uiState.update {
-            it.copy(
-                openTickets = it.openTickets + (tableName to ticket),
-                cart = emptyList(),
-                currentTicketName = null,
-                showTicketDialog = false,
-                showCheckout = false,
-                amountPaid = "",
-                duplicateTicketWarning = null,
-                suggestedTicketName = null
-            )
+    private fun suggestTicketName(base: String, existing: Set<String>): String {
+        var n = 2
+        while (true) {
+            val candidate = "$base($n)"
+            if (candidate !in existing) return candidate
+            n++
         }
-        persistTickets()
+    }
+
+    fun clearTicketError() {
+        _uiState.update { it.copy(ticketDuplicateError = null, ticketSuggestedName = null) }
     }
 
     fun dismissDuplicateWarning() {
@@ -452,56 +470,37 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun useSuggestedTicketName() {
-        val suggested = _uiState.value.suggestedTicketName ?: return
-        _uiState.update { it.copy(duplicateTicketWarning = null, suggestedTicketName = null) }
-        saveTicket(suggested)
+        val state = _uiState.value
+        val suggested = state.suggestedTicketName
+        if (suggested != null) {
+            saveTicket(suggested)
+        }
     }
 
     fun loadTicket(tableName: String) {
         val state = _uiState.value
         val ticket = state.openTickets[tableName] ?: return
 
-        var updatedTickets = state.openTickets - tableName
+        viewModelScope.launch {
+            if (state.cart.isNotEmpty() && state.currentTicketName != null) {
+                openTicketRepo.replaceTicket(state.currentTicketName!!, state.cart)
+            }
 
-        if (state.cart.isNotEmpty() && state.currentTicketName != null) {
-            val currentTicket = OpenTicket(
-                tableName = state.currentTicketName,
-                cart = state.cart
-            )
-            updatedTickets = updatedTickets + (state.currentTicketName to currentTicket)
+            _uiState.update {
+                it.copy(
+                    cart = ticket.cart,
+                    currentTicketName = tableName,
+                    showTicketList = false,
+                    showCheckout = false,
+                    amountPaid = ""
+                )
+            }
         }
-
-        _uiState.update {
-            it.copy(
-                openTickets = updatedTickets,
-                cart = ticket.cart,
-                currentTicketName = tableName,
-                showTicketList = false,
-                showCheckout = false,
-                amountPaid = ""
-            )
-        }
-        persistTickets()
     }
 
     fun deleteTicket(tableName: String) {
-        _uiState.update {
-            it.copy(openTickets = it.openTickets - tableName)
+        viewModelScope.launch {
+            openTicketRepo.deleteTicket(tableName)
         }
-        persistTickets()
-    }
-
-    // Quantity dialog
-    fun showQuantityDialog(cartItem: CartItem) {
-        _uiState.update { it.copy(showQuantityDialog = true, editingCartItem = cartItem) }
-    }
-
-    fun hideQuantityDialog() {
-        _uiState.update { it.copy(showQuantityDialog = false, editingCartItem = null) }
-    }
-
-    fun updateQuantityAndClose(productId: Long, quantity: Int) {
-        updateCartQuantity(productId, quantity)
-        hideQuantityDialog()
     }
 }

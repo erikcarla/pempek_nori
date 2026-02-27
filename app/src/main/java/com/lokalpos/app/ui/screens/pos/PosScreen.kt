@@ -144,6 +144,10 @@ fun PosScreen(
             actions = {
                 IconButton(onClick = { viewModel.showTicketList() }) {
                     Icon(Icons.Filled.TableBar, "Open Tickets")
+                    if (state.openTickets.isNotEmpty()) {
+                        Spacer(Modifier.width(2.dp))
+                        Text("${state.openTickets.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                    }
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
@@ -306,9 +310,8 @@ private fun TabletCheckoutPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
             IconButton(onClick = { viewModel.toggleCheckout() }) {
                 Icon(Icons.Filled.ArrowBack, "Kembali")
             }
@@ -321,15 +324,16 @@ private fun TabletCheckoutPanel(
             "TOTAL: ${settings.formatCurrency(state.total)}",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
 
         Spacer(Modifier.height(16.dp))
 
-        Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall)
+        Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp))
         Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(settings.paymentMethods.toList()) { method ->
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 8.dp)) {
+            items(settings.getPaymentMethodsList()) { method ->
                 FilterChip(
                     selected = state.paymentMethod == method,
                     onClick = { viewModel.setPaymentMethod(method) },
@@ -341,7 +345,9 @@ private fun TabletCheckoutPanel(
         Spacer(Modifier.height(16.dp))
 
         if (state.paymentMethod == "Tunai") {
-            CashPaymentInput(state, settings, viewModel)
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                CashPaymentInput(state, settings, viewModel)
+            }
         }
 
         Spacer(Modifier.weight(1f))
@@ -350,7 +356,8 @@ private fun TabletCheckoutPanel(
             onClick = { viewModel.processPayment() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .height(56.dp)
+                .padding(16.dp),
             enabled = state.canPay && !state.isProcessing,
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -440,19 +447,34 @@ private fun PhoneCheckoutView(
     viewModel: PosViewModel
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { viewModel.toggleCheckout() }) {
-                Icon(Icons.Filled.ArrowBack, "Kembali")
+        // Header - Pembayaran
+        Surface(
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { viewModel.toggleCheckout() }, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Filled.ArrowBack, "Kembali", modifier = Modifier.size(24.dp))
+                    }
+                    Text("Pembayaran", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
             }
-            Text("Pembayaran", style = MaterialTheme.typography.titleLarge)
         }
 
         LazyColumn(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items(state.cart) { cartItem ->
@@ -460,59 +482,61 @@ private fun PhoneCheckoutView(
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 
-        if (state.taxAmount > 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
-                Text(settings.formatCurrency(state.taxAmount))
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            if (state.taxAmount > 0) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
+                    Text(settings.formatCurrency(state.taxAmount))
+                }
             }
-        }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(
-                settings.formatCurrency(state.total),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(settings.paymentMethods.toList()) { method ->
-                FilterChip(
-                    selected = state.paymentMethod == method,
-                    onClick = { viewModel.setPaymentMethod(method) },
-                    label = { Text(method) }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    settings.formatCurrency(state.total),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
-        }
-        Spacer(Modifier.height(12.dp))
 
-        if (state.paymentMethod == "Tunai") {
-            CashPaymentInput(state, settings, viewModel)
-        }
+            Spacer(Modifier.height(16.dp))
+            Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(settings.getPaymentMethodsList()) { method ->
+                    FilterChip(
+                        selected = state.paymentMethod == method,
+                        onClick = { viewModel.setPaymentMethod(method) },
+                        label = { Text(method) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
 
-        Spacer(Modifier.height(16.dp))
+            if (state.paymentMethod == "Tunai") {
+                CashPaymentInput(state, settings, viewModel)
+            }
 
-        Button(
-            onClick = { viewModel.processPayment() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            enabled = state.canPay && !state.isProcessing,
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            if (state.isProcessing) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                Icon(Icons.Filled.Payment, null)
-                Spacer(Modifier.width(8.dp))
-                Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 16.sp)
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = { viewModel.processPayment() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                enabled = state.canPay && !state.isProcessing,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (state.isProcessing) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Icon(Icons.Filled.Payment, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 14.sp)
+                }
             }
         }
     }
@@ -529,6 +553,7 @@ private fun ProductPanel(
 ) {
     var showSearch by remember { mutableStateOf(false) }
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
+    val isGridMode = settings.displayMode == "grid"
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Category dropdown and search in same row
@@ -620,24 +645,95 @@ private fun ProductPanel(
                 ) {
                     Icon(Icons.Filled.Search, "Cari")
                 }
+
+                // Grid/List toggle button
+                IconButton(
+                    onClick = { settings.displayMode = if (isGridMode) "list" else "grid" }
+                ) {
+                    Icon(
+                        if (isGridMode) Icons.Filled.ViewList else Icons.Filled.DashboardCustomize,
+                        if (isGridMode) "Switch to List" else "Switch to Grid"
+                    )
+                }
             }
         }
 
-        // Product grid
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(state.products, key = { it.id }) { product ->
-                ProductGridItem(
-                    product = product,
-                    currencySymbol = settings.currencySymbol,
-                    onClick = { viewModel.addToCart(product) }
-                )
+        // Product display
+        if (isGridMode) {
+            // Grid view
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 100.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(state.products, key = { it.id }) { product ->
+                    ProductGridItem(
+                        product = product,
+                        currencySymbol = settings.currencySymbol,
+                        onClick = { viewModel.addToCart(product) }
+                    )
+                }
             }
+        } else {
+            // List view
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(state.products, key = { it.id }) { product ->
+                    ProductListItem(
+                        product = product,
+                        settings = settings,
+                        onClick = { viewModel.addToCart(product) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductListItem(
+    product: com.lokalpos.app.data.entity.Product,
+    settings: com.lokalpos.app.util.SettingsManager,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                if (product.trackStock && product.inStock <= product.lowStockAlert) {
+                    Text(
+                        text = "Stok: ${product.inStock}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Text(
+                text = "${settings.currencySymbol} %,d".format(product.price.toLong()),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -697,6 +793,7 @@ private fun CartItemRow(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     val deleteThreshold = -100f
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // Delete background
@@ -708,12 +805,28 @@ private fun CartItemRow(
                     .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "Hapus",
-                    tint = Color.White,
-                    modifier = Modifier.padding(end = 16.dp)
-                )
+                if (offsetX < deleteThreshold) {
+                    Row(
+                        modifier = Modifier.padding(end = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Geser untuk hapus", color = Color.White, fontSize = 12.sp)
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Hapus",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Hapus",
+                        tint = Color.White,
+                        modifier = Modifier.padding(end = 16.dp)
+                    )
+                }
             }
         }
 
@@ -725,7 +838,7 @@ private fun CartItemRow(
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             if (offsetX < deleteThreshold) {
-                                viewModel.removeFromCart(cartItem.product.id)
+                                showDeleteConfirm = true
                             }
                             offsetX = 0f
                         },
@@ -765,6 +878,28 @@ private fun CartItemRow(
                 )
             }
         }
+    }
+
+    // Delete confirmation dialog
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Hapus Item?") },
+            text = { Text("Apakah Anda yakin ingin menghapus ${cartItem.product.name}?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.removeFromCart(cartItem.product.id)
+                    showDeleteConfirm = false
+                }) {
+                    Text("Hapus")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Batal")
+                }
+            }
+        )
     }
 }
 

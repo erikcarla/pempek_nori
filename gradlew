@@ -66,7 +66,7 @@ else
 fi
 
 # Increase the maximum file descriptors if we can.
-if [ "${cygwin_or_msys:-}" != "true" ] && [ "$MAX_FD" != "maximum" ] ; then
+if ! "$cygwin_or_msys" && [ "$MAX_FD" != "maximum" ] ; then
     case $MAX_FD in
       max*)
         MAX_FD=$( ulimit -H -n ) ||
