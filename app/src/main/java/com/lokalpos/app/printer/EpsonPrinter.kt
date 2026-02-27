@@ -169,15 +169,14 @@ class EpsonPrinter(private val context: Context) {
 
         // Header
         addBytes(ESC_ALIGN_CENTER)
+        // Store name with slightly larger size (double width only, not double height)
         addBytes(ESC_BOLD_ON)
-        // Store name with +2 size (double width and height)
         addBytes(ESC_DOUBLE_WIDTH)
-        addBytes(ESC_DOUBLE_HEIGHT)
         addLine(settings.storeName)
         addBytes(ESC_NORMAL_SIZE)
         addBytes(ESC_BOLD_OFF)
 
-        // Address and phone with normal size (no double)
+        // Address and phone with normal size (same as other text)
         if (settings.storeAddress.isNotBlank()) {
             addLine(settings.storeAddress)
         }
@@ -217,7 +216,7 @@ class EpsonPrinter(private val context: Context) {
 
         addDash()
 
-        // Remove subtotal - go directly to discount if present
+        // Discount if present
         if (transaction.discountAmount > 0) {
             val discLabel = if (transaction.discountPercent > 0)
                 "Diskon (${transaction.discountPercent.toInt()}%)" else "Diskon"
@@ -229,7 +228,7 @@ class EpsonPrinter(private val context: Context) {
         addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width))
         addBytes(ESC_BOLD_OFF)
 
-        // Tax (PB1) appears AFTER total
+        // PB1 (Tax) appears AFTER total
         if (transaction.taxAmount > 0) {
             val taxLabel = if (transaction.taxPercent > 0)
                 "PB1 (${transaction.taxPercent.toInt()}%)" else "PB1"

@@ -4,7 +4,6 @@ import android.app.Application
 import com.lokalpos.app.data.AppDatabase
 import com.lokalpos.app.data.DatabaseSeeder
 import com.lokalpos.app.data.repository.CustomerRepository
-import com.lokalpos.app.data.repository.OpenTicketRepository
 import com.lokalpos.app.data.repository.ProductRepository
 import com.lokalpos.app.data.repository.TransactionRepository
 import com.lokalpos.app.util.SettingsManager
@@ -23,8 +22,6 @@ class LokalPosApp : Application() {
         private set
     lateinit var customerRepository: CustomerRepository
         private set
-    lateinit var openTicketRepository: OpenTicketRepository
-        private set
     lateinit var settingsManager: SettingsManager
         private set
 
@@ -35,7 +32,6 @@ class LokalPosApp : Application() {
         productRepository = ProductRepository(database.productDao(), database.categoryDao())
         transactionRepository = TransactionRepository(database.transactionDao())
         customerRepository = CustomerRepository(database.customerDao())
-        openTicketRepository = OpenTicketRepository(this)
         settingsManager = SettingsManager(this)
 
         CoroutineScope(Dispatchers.IO).launch {

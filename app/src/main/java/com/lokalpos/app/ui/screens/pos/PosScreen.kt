@@ -7,9 +7,11 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -119,6 +121,42 @@ fun PosScreen(
         )
     }
 
+    var categoryDropdownExpanded by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+
+    // Search dialog
+    if (showSearchDialog) {
+        AlertDialog(
+            onDismissRequest = { showSearchDialog = false },
+            title = { Text("Cari Produk") },
+            text = {
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = { viewModel.searchProducts(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Ketik nama produk...") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Filled.Search, null) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showSearchDialog = false }) {
+                    Text("Tutup")
+                }
+            },
+            dismissButton = {
+                if (state.searchQuery.isNotEmpty()) {
+                    TextButton(onClick = {
+                        viewModel.searchProducts("")
+                        showSearchDialog = false
+                    }) {
+                        Text("Reset")
+                    }
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -126,13 +164,74 @@ fun PosScreen(
     ) {
         TopAppBar(
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        if (state.currentTicketName != null) "Kasir - ${state.currentTicketName}" else "Kasir"
+                        if (state.currentTicketName != null) state.currentTicketName!! else "Kasir",
+                        modifier = Modifier.padding(end = 8.dp)
                     )
-                    if (state.openTickets.isNotEmpty()) {
-                        Spacer(Modifier.width(8.dp))
-                        Badge { Text("${state.openTickets.size}") }
+
+                    // Category dropdown
+                    ExposedDropdownMenuBox(
+                        expanded = categoryDropdownExpanded,
+                        onExpandedChange = { categoryDropdownExpanded = it }
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .menuAnchor()
+                                .clip(RoundedCornerShape(8.dp)),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    state.categories.find { it.id == state.selectedCategoryId }?.name ?: "All items",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Icon(
+                                    if (categoryDropdownExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        ExposedDropdownMenu(
+                            expanded = categoryDropdownExpanded,
+                            onDismissRequest = { categoryDropdownExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("All items") },
+                                onClick = {
+                                    viewModel.selectCategory(null)
+                                    categoryDropdownExpanded = false
+                                },
+                                leadingIcon = {
+                                    if (state.selectedCategoryId == null) {
+                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                    }
+                                }
+                            )
+                            state.categories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category.name) },
+                                    onClick = {
+                                        viewModel.selectCategory(category.id)
+                                        categoryDropdownExpanded = false
+                                    },
+                                    leadingIcon = {
+                                        if (state.selectedCategoryId == category.id) {
+                                            Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             },
@@ -142,11 +241,20 @@ fun PosScreen(
                 }
             },
             actions = {
-                IconButton(onClick = { viewModel.showTicketList() }) {
-                    Icon(Icons.Filled.TableBar, "Open Tickets")
-                    if (state.openTickets.isNotEmpty()) {
-                        Spacer(Modifier.width(2.dp))
-                        Text("${state.openTickets.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+                // Search button
+                IconButton(onClick = { showSearchDialog = true }) {
+                    Icon(Icons.Filled.Search, "Cari")
+                }
+                // Table/Ticket button with badge
+                BadgedBox(
+                    badge = {
+                        if (state.openTickets.isNotEmpty()) {
+                            Badge { Text("${state.openTickets.size}") }
+                        }
+                    }
+                ) {
+                    IconButton(onClick = { viewModel.showTicketList() }) {
+                        Icon(Icons.Filled.TableBar, "Open Tickets")
                     }
                 }
             },
@@ -216,17 +324,64 @@ private fun TabletCartPanel(
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
+    var showMoreMenu by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        // Header like screenshot's "Ticket" section
         Surface(
             tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface
         ) {
-            Text(
-                if (state.currentTicketName != null) state.currentTicketName!! else "Keranjang",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(16.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (state.currentTicketName != null) state.currentTicketName!! else "Ticket",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium
+                )
+                Row {
+                    // Save ticket button
+                    if (state.cart.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.showTicketDialog() }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.Save, "Save Ticket", Modifier.size(20.dp))
+                        }
+                    }
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.MoreVert, "More", Modifier.size(20.dp))
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            if (state.cart.isNotEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("Simpan Meja") },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        viewModel.showTicketDialog()
+                                    },
+                                    leadingIcon = { Icon(Icons.Filled.Save, null) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Hapus Semua") },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        viewModel.clearCart()
+                                    },
+                                    leadingIcon = { Icon(Icons.Filled.Delete, null) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (state.cart.isEmpty()) {
@@ -288,14 +443,47 @@ private fun TabletCartPanel(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { viewModel.showTicketDialog() },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("SIMPAN") }
+                        onClick = { viewModel.showTicketList() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = SuccessGreen
+                        )
+                    ) { Text("OPEN TICKETS") }
                     Button(
                         onClick = { viewModel.toggleCheckout() },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("BAYAR ${settings.formatCurrency(state.total)}") }
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SuccessGreen
+                        )
+                    ) { Text("CHARGE") }
                 }
+            }
+        }
+
+        // Bottom buttons - always visible even when cart is empty
+        if (state.cart.isEmpty()) {
+            Spacer(Modifier.weight(1f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.showTicketList() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = SuccessGreen
+                    )
+                ) { Text("OPEN TICKETS") }
+                Button(
+                    onClick = { },
+                    modifier = Modifier.weight(1f),
+                    enabled = false,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SuccessGreen
+                    )
+                ) { Text("CHARGE") }
             }
         }
     }
@@ -310,8 +498,9 @@ private fun TabletCheckoutPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .padding(12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { viewModel.toggleCheckout() }) {
                 Icon(Icons.Filled.ArrowBack, "Kembali")
             }
@@ -324,15 +513,14 @@ private fun TabletCheckoutPanel(
             "TOTAL: ${settings.formatCurrency(state.total)}",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(Modifier.height(16.dp))
 
-        Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp))
+        Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(horizontal = 8.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(settings.getPaymentMethodsList()) { method ->
                 FilterChip(
                     selected = state.paymentMethod == method,
@@ -345,9 +533,7 @@ private fun TabletCheckoutPanel(
         Spacer(Modifier.height(16.dp))
 
         if (state.paymentMethod == "Tunai") {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                CashPaymentInput(state, settings, viewModel)
-            }
+            CashPaymentInput(state, settings, viewModel)
         }
 
         Spacer(Modifier.weight(1f))
@@ -356,8 +542,7 @@ private fun TabletCheckoutPanel(
             onClick = { viewModel.processPayment() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(16.dp),
+                .height(56.dp),
             enabled = state.canPay && !state.isProcessing,
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -440,51 +625,46 @@ private fun PhoneLayout(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhoneCheckoutView(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Header - Pembayaran
-        Surface(
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { viewModel.toggleCheckout() }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Filled.ArrowBack, "Kembali", modifier = Modifier.size(24.dp))
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Pembayaran") },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.toggleCheckout() }) {
+                        Icon(Icons.Filled.ArrowBack, "Kembali")
                     }
-                    Text("Pembayaran", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-            }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
         }
-
-        LazyColumn(
+    ) { padding ->
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
         ) {
-            items(state.cart) { cartItem ->
-                CartItemRow(cartItem, settings, viewModel)
+            // Cart items
+            state.cart.forEach { cartItem ->
+                CartItemRowSimple(cartItem, settings)
+                Spacer(Modifier.height(4.dp))
             }
-        }
 
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             if (state.taxAmount > 0) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
@@ -505,7 +685,10 @@ private fun PhoneCheckoutView(
             Spacer(Modifier.height(16.dp))
             Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 items(settings.getPaymentMethodsList()) { method ->
                     FilterChip(
                         selected = state.paymentMethod == method,
@@ -535,9 +718,50 @@ private fun PhoneCheckoutView(
                 } else {
                     Icon(Icons.Filled.Payment, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 14.sp)
+                    Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 16.sp)
                 }
             }
+
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+// Simple cart item row for checkout view (non-swipeable)
+@Composable
+private fun CartItemRowSimple(
+    cartItem: CartItem,
+    settings: com.lokalpos.app.util.SettingsManager
+) {
+    Card(
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    cartItem.product.name,
+                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${cartItem.quantity} x ${settings.formatCurrency(cartItem.product.price)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                settings.formatCurrency(cartItem.subtotal),
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
         }
     }
 }
@@ -551,116 +775,13 @@ private fun ProductPanel(
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    var showSearch by remember { mutableStateOf(false) }
-    var categoryDropdownExpanded by remember { mutableStateOf(false) }
-    val isGridMode = settings.displayMode == "grid"
-
     Column(modifier = Modifier.fillMaxSize()) {
-        // Category dropdown and search in same row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (showSearch) {
-                // Search mode
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = { viewModel.searchProducts(it) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    placeholder = { Text("Cari produk...", fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Filled.Search, null, Modifier.size(20.dp)) },
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            viewModel.searchProducts("")
-                            showSearch = false
-                        }) {
-                            Icon(Icons.Filled.Close, "Tutup", Modifier.size(20.dp))
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(24.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium
-                )
-            } else {
-                // Category dropdown
-                ExposedDropdownMenuBox(
-                    expanded = categoryDropdownExpanded,
-                    onExpandedChange = { categoryDropdownExpanded = it },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    OutlinedTextField(
-                        value = state.categories.find { it.id == state.selectedCategoryId }?.name ?: "Semua Kategori",
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                            .height(48.dp),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
-                        shape = RoundedCornerShape(24.dp),
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        singleLine = true
-                    )
-                    ExposedDropdownMenu(
-                        expanded = categoryDropdownExpanded,
-                        onDismissRequest = { categoryDropdownExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Semua Kategori") },
-                            onClick = {
-                                viewModel.selectCategory(null)
-                                categoryDropdownExpanded = false
-                            },
-                            leadingIcon = {
-                                if (state.selectedCategoryId == null) {
-                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
-                                }
-                            }
-                        )
-                        state.categories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category.name) },
-                                onClick = {
-                                    viewModel.selectCategory(category.id)
-                                    categoryDropdownExpanded = false
-                                },
-                                leadingIcon = {
-                                    if (state.selectedCategoryId == category.id) {
-                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
 
-                // Search button
-                IconButton(
-                    onClick = { showSearch = true }
-                ) {
-                    Icon(Icons.Filled.Search, "Cari")
-                }
+        // Product display - Grid or List based on settings
+        val isGridMode = settings.displayMode == "grid"
 
-                // Grid/List toggle button
-                IconButton(
-                    onClick = { settings.displayMode = if (isGridMode) "list" else "grid" }
-                ) {
-                    Icon(
-                        if (isGridMode) Icons.Filled.ViewList else Icons.Filled.DashboardCustomize,
-                        if (isGridMode) "Switch to List" else "Switch to Grid"
-                    )
-                }
-            }
-        }
-
-        // Product display
         if (isGridMode) {
-            // Grid view
+            // Product grid
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 100.dp),
                 modifier = Modifier.fillMaxSize(),
@@ -677,7 +798,7 @@ private fun ProductPanel(
                 }
             }
         } else {
-            // List view
+            // Product list
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(8.dp),
@@ -691,49 +812,6 @@ private fun ProductPanel(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ProductListItem(
-    product: com.lokalpos.app.data.entity.Product,
-    settings: com.lokalpos.app.util.SettingsManager,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = product.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                if (product.trackStock && product.inStock <= product.lowStockAlert) {
-                    Text(
-                        text = "Stok: ${product.inStock}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-            Text(
-                text = "${settings.currencySymbol} %,d".format(product.price.toLong()),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
-            )
         }
     }
 }
@@ -786,18 +864,63 @@ private fun ProductGridItem(
 }
 
 @Composable
+private fun ProductListItem(
+    product: com.lokalpos.app.data.entity.Product,
+    settings: com.lokalpos.app.util.SettingsManager,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (product.trackStock && product.inStock <= product.lowStockAlert) {
+                    Text(
+                        text = "Stok: ${product.inStock}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Text(
+                text = settings.formatCurrency(product.price),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
 private fun CartItemRow(
     cartItem: CartItem,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
-    val deleteThreshold = -100f
-    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isSwiped by remember { mutableStateOf(false) }
+    val deleteButtonWidth = 80f
 
     Box(modifier = Modifier.fillMaxWidth()) {
-        // Delete background
-        if (offsetX < 0) {
+        // Delete button background (appears when swiped)
+        if (offsetX < 0 || isSwiped) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -805,27 +928,32 @@ private fun CartItemRow(
                     .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                if (offsetX < deleteThreshold) {
-                    Row(
-                        modifier = Modifier.padding(end = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Geser untuk hapus", color = Color.White, fontSize = 12.sp)
+                // Clickable delete button
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .fillMaxHeight()
+                        .clickable {
+                            viewModel.removeFromCart(cartItem.product.id)
+                            isSwiped = false
+                            offsetX = 0f
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Filled.Delete,
                             contentDescription = "Hapus",
                             tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            "Hapus",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                } else {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Hapus",
-                        tint = Color.White,
-                        modifier = Modifier.padding(end = 16.dp)
-                    )
                 }
             }
         }
@@ -837,17 +965,30 @@ private fun CartItemRow(
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            if (offsetX < deleteThreshold) {
-                                showDeleteConfirm = true
+                            // If swiped past threshold, keep it open
+                            if (offsetX < -deleteButtonWidth) {
+                                offsetX = -deleteButtonWidth
+                                isSwiped = true
+                            } else {
+                                // Snap back
+                                offsetX = 0f
+                                isSwiped = false
                             }
-                            offsetX = 0f
                         },
                         onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(-150f, 0f)
+                            offsetX = (offsetX + dragAmount).coerceIn(-deleteButtonWidth - 20f, 0f)
                         }
                     )
                 }
-                .clickable { viewModel.showQuantityDialog(cartItem) },
+                .clickable {
+                    if (isSwiped) {
+                        // If swiped, tap to close
+                        offsetX = 0f
+                        isSwiped = false
+                    } else {
+                        viewModel.showQuantityDialog(cartItem)
+                    }
+                },
             shape = RoundedCornerShape(8.dp)
         ) {
             Row(
@@ -878,28 +1019,6 @@ private fun CartItemRow(
                 )
             }
         }
-    }
-
-    // Delete confirmation dialog
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Hapus Item?") },
-            text = { Text("Apakah Anda yakin ingin menghapus ${cartItem.product.name}?") },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.removeFromCart(cartItem.product.id)
-                    showDeleteConfirm = false
-                }) {
-                    Text("Hapus")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Batal")
-                }
-            }
-        )
     }
 }
 

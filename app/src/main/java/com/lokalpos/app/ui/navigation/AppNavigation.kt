@@ -100,14 +100,13 @@ fun AppNavigation() {
                     val body = sb.toString()
                     val senderEmail = settings.emailSenderAddress
                     val senderPassword = settings.emailSenderPassword
-                    val recipientEmail = settings.emailReportAddress
 
                     if (senderEmail.isNotBlank() && senderPassword.isNotBlank()) {
                         Toast.makeText(context, "Mengirim laporan...", Toast.LENGTH_SHORT).show()
                         val result = EmailSender.send(
                             senderEmail = senderEmail,
                             senderPassword = senderPassword,
-                            recipientEmail = recipientEmail,
+                            recipientEmail = settings.emailReportAddress,
                             subject = subject,
                             body = body
                         )
@@ -158,6 +157,23 @@ fun AppNavigation() {
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Filled.Email, contentDescription = "Kirim Laporan") },
+                    label = { Text("Kirim Laporan Harian") },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        if (app.settingsManager.emailReportEnabled) {
+                            showEmailReportDialog = true
+                        } else {
+                            Toast.makeText(context, "Fitur email laporan belum diaktifkan. Aktifkan di Pengaturan.", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
             }
         }
     ) {
