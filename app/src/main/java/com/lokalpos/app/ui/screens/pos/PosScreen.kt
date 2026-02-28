@@ -1062,14 +1062,14 @@ private fun CartItemRow(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
     val swipeThreshold = 40f
-    val swipeOffset = 70f
+    val swipeOffset = 130f
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Min)
     ) {
-        // Red background with delete icon - always present behind the card
+        // Red background with delete icon
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -1088,12 +1088,12 @@ private fun CartItemRow(
                 contentDescription = "Hapus",
                 tint = Color.White,
                 modifier = Modifier
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = 36.dp)
                     .size(24.dp)
             )
         }
 
-        // White card that slides to reveal red background
+        // Gray card that slides to reveal red background
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1125,7 +1125,7 @@ private fun CartItemRow(
             shape = RoundedCornerShape(8.dp),
             elevation = CardDefaults.cardElevation(2.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
+                containerColor = Color(0xFFF5F5F5)
             )
         ) {
             Row(
