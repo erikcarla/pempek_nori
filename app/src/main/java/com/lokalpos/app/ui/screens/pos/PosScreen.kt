@@ -566,7 +566,7 @@ private fun TabletCartContent(
                     OutlinedButton(
                         onClick = { viewModel.showTicketDialog() },
                         modifier = Modifier.weight(1f)
-                    ) { Text("SIMPAN") }
+                    ) { Text("SAVE") }
                     Button(
                         onClick = { viewModel.toggleCheckout() },
                         modifier = Modifier.weight(1f)
@@ -730,7 +730,7 @@ private fun PhoneProductsView(
                             ) {
                                 Icon(Icons.Filled.TableBar, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Simpan", fontSize = 12.sp)
+                                Text("Save", fontSize = 12.sp)
                             }
                             Button(
                                 onClick = { viewModel.toggleCheckout() },
@@ -1084,7 +1084,7 @@ private fun CartItemRow(
                     .padding(end = 36.dp)
                     .size(28.dp)
                     .clickable {
-                        viewModel.removeFromCart(cartItem.product.id)
+                        viewModel.removeFromCart(cartItem.entryId)
                         isSwiped = false
                         offsetX = 0f
                     }
@@ -1284,7 +1284,7 @@ private fun SaveTicketDialog(
         },
         confirmButton = {
             Button(onClick = { if (tableName.isNotBlank()) onSave(tableName.trim()) }, enabled = tableName.isNotBlank()) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
@@ -1440,7 +1440,7 @@ private fun QuantityEditDialog(
 
                 // Delete button
                 OutlinedButton(
-                    onClick = { onDelete(cartItem.product.id) },
+                    onClick = { onDelete(cartItem.entryId) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -1454,9 +1454,9 @@ private fun QuantityEditDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onUpdateQuantity(cartItem.product.id, quantity) }
+                onClick = { onUpdateQuantity(cartItem.entryId, quantity) }
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {
