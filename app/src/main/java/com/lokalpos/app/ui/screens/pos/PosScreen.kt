@@ -1088,7 +1088,7 @@ private fun CartItemRow(
                 contentDescription = "Hapus",
                 tint = Color.White,
                 modifier = Modifier
-                    .padding(horizontal = 36.dp)
+                    .padding(end = 6.dp)
                     .size(24.dp)
             )
         }
