@@ -294,11 +294,21 @@ fun PosScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            if (state.currentTicketName != null) state.currentTicketName!! else "Ticket",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (state.currentTicketName != null) state.currentTicketName!! else "Ticket",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (state.cart.isNotEmpty()) {
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "(${state.cartItemCount} item)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         // Open tickets button with badge
                         BadgedBox(
                             badge = {
@@ -608,12 +618,24 @@ private fun TabletCheckoutPanel(
 
         Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(settings.getPaymentMethodsList()) { method ->
+
+        // Payment methods - wrap to next line for tablet, 2 per row
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            settings.getPaymentMethodsList().forEach { method ->
                 FilterChip(
                     selected = state.paymentMethod == method,
                     onClick = { viewModel.setPaymentMethod(method) },
-                    label = { Text(method) }
+                    label = {
+                        Text(
+                            method,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    },
+                    modifier = Modifier.widthIn(min = 120.dp)
                 )
             }
         }
