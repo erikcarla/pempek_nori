@@ -95,7 +95,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     val settings = app.settingsManager
     private val printer = EpsonPrinter(application)
     private val gson = com.google.gson.Gson()
-    private var pendingTicketsJson: Map<String, String>? = null
+    private var ticketsLoaded = false
 
     private val _uiState = MutableStateFlow(PosUiState())
     val uiState: StateFlow<PosUiState> = _uiState.asStateFlow()
@@ -105,8 +105,11 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadPersistedTickets(products: List<Product>) {
-        val savedTicketsJson = pendingTicketsJson ?: settings.loadTickets()
-        pendingTicketsJson = null
+        if (ticketsLoaded) return
+        ticketsLoaded = true
+
+        val savedTicketsJson = settings.loadTickets()
+        if (savedTicketsJson.isEmpty()) return
 
         val tickets = mutableMapOf<String, OpenTicket>()
         savedTicketsJson.forEach { (name, json) ->
@@ -119,9 +122,13 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 if (cart.isNotEmpty()) {
                     tickets[name] = OpenTicket(name, cart)
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                android.util.Log.e("PosViewModel", "Error loading ticket: $name", e)
+            }
         }
-        _uiState.update { it.copy(openTickets = tickets, paymentMethod = settings.defaultPaymentMethod) }
+        if (tickets.isNotEmpty()) {
+            _uiState.update { it.copy(openTickets = tickets) }
+        }
     }
 
     private fun persistTickets() {
@@ -134,9 +141,6 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun loadData() {
-        // First load saved tickets JSON to memory
-        pendingTicketsJson = settings.loadTickets()
-
         viewModelScope.launch {
             productRepo.getAllCategories().collect { categories ->
                 _uiState.update { it.copy(categories = categories) }
@@ -145,12 +149,11 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             productRepo.getAllProducts().collect { products ->
                 _uiState.update { it.copy(products = products) }
-                // Now that products are loaded, restore tickets
-                if (pendingTicketsJson != null) {
-                    loadPersistedTickets(products)
-                }
+                // Load persisted tickets after products are available
+                loadPersistedTickets(products)
             }
         }
+        _uiState.update { it.copy(paymentMethod = settings.defaultPaymentMethod) }
         refreshTaxSettings()
     }
 

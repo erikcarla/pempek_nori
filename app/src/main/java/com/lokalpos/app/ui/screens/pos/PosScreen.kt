@@ -122,157 +122,354 @@ fun PosScreen(
     }
 
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
-    var showSearchDialog by remember { mutableStateOf(false) }
+    var isSearchActive by remember { mutableStateOf(false) }
 
-    // Search dialog
-    if (showSearchDialog) {
-        AlertDialog(
-            onDismissRequest = { showSearchDialog = false },
-            title = { Text("Cari Produk") },
-            text = {
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = { viewModel.searchProducts(it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Ketik nama produk...") },
-                    singleLine = true,
-                    leadingIcon = { Icon(Icons.Filled.Search, null) }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showSearchDialog = false }) {
-                    Text("Tutup")
-                }
-            },
-            dismissButton = {
-                if (state.searchQuery.isNotEmpty()) {
-                    TextButton(onClick = {
-                        viewModel.searchProducts("")
-                        showSearchDialog = false
-                    }) {
-                        Text("Reset")
-                    }
-                }
-            }
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-    ) {
-        TopAppBar(
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        if (state.currentTicketName != null) state.currentTicketName!! else "Kasir",
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-
-                    // Category dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = categoryDropdownExpanded,
-                        onExpandedChange = { categoryDropdownExpanded = it }
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .menuAnchor()
-                                .clip(RoundedCornerShape(8.dp)),
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
-                        ) {
+    // For tablet: use Row layout with separate headers
+    if (isTablet) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+        ) {
+            // Left side: Product area (70%)
+            Column(
+                modifier = Modifier
+                    .weight(0.7f)
+                    .fillMaxHeight()
+            ) {
+                // Product header (green)
+                TopAppBar(
+                    title = {
+                        if (isSearchActive) {
+                            TextField(
+                                value = state.searchQuery,
+                                onValueChange = { viewModel.searchProducts(it) },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(
+                                        "Cari produk...",
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                    )
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    cursorColor = MaterialTheme.colorScheme.onPrimary,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                textStyle = MaterialTheme.typography.bodyLarge
+                            )
+                        } else {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    state.categories.find { it.id == state.selectedCategoryId }?.name ?: "All items",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    if (state.currentTicketName != null) state.currentTicketName!! else "Kasir",
+                                    modifier = Modifier.padding(end = 8.dp)
                                 )
-                                Icon(
-                                    if (categoryDropdownExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        ExposedDropdownMenu(
-                            expanded = categoryDropdownExpanded,
-                            onDismissRequest = { categoryDropdownExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("All items") },
-                                onClick = {
-                                    viewModel.selectCategory(null)
-                                    categoryDropdownExpanded = false
-                                },
-                                leadingIcon = {
-                                    if (state.selectedCategoryId == null) {
-                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                            state.categories.forEach { category ->
-                                DropdownMenuItem(
-                                    text = { Text(category.name) },
-                                    onClick = {
-                                        viewModel.selectCategory(category.id)
-                                        categoryDropdownExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (state.selectedCategoryId == category.id) {
-                                            Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                // Category dropdown
+                                Box {
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { categoryDropdownExpanded = true },
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                state.categories.find { it.id == state.selectedCategoryId }?.name ?: "All items",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Icon(
+                                                if (categoryDropdownExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
                                         }
                                     }
-                                )
+                                    DropdownMenu(
+                                        expanded = categoryDropdownExpanded,
+                                        onDismissRequest = { categoryDropdownExpanded = false },
+                                        modifier = Modifier.widthIn(min = 180.dp)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("All items") },
+                                            onClick = {
+                                                viewModel.selectCategory(null)
+                                                categoryDropdownExpanded = false
+                                            },
+                                            leadingIcon = {
+                                                if (state.selectedCategoryId == null) {
+                                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                                }
+                                            }
+                                        )
+                                        state.categories.forEach { category ->
+                                            DropdownMenuItem(
+                                                text = { Text(category.name) },
+                                                onClick = {
+                                                    viewModel.selectCategory(category.id)
+                                                    categoryDropdownExpanded = false
+                                                },
+                                                leadingIcon = {
+                                                    if (state.selectedCategoryId == category.id) {
+                                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        if (isSearchActive) {
+                            IconButton(onClick = {
+                                isSearchActive = false
+                                viewModel.searchProducts("")
+                            }) {
+                                Icon(Icons.Filled.ArrowBack, "Tutup")
+                            }
+                        } else {
+                            IconButton(onClick = onOpenDrawer) {
+                                Icon(Icons.Filled.Menu, "Menu")
+                            }
+                        }
+                    },
+                    actions = {
+                        if (isSearchActive) {
+                            if (state.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.searchProducts("") }) {
+                                    Icon(Icons.Filled.Close, "Hapus")
+                                }
+                            }
+                        } else {
+                            IconButton(onClick = { isSearchActive = true }) {
+                                Icon(Icons.Filled.Search, "Cari")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+                // Products
+                ProductPanel(state = state, settings = settings, viewModel = viewModel)
+            }
+
+            VerticalDivider()
+
+            // Right side: Cart area (30%)
+            Column(
+                modifier = Modifier
+                    .weight(0.3f)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            ) {
+                // Cart header (white/surface color like "Ticket" in screenshot)
+                Surface(
+                    tonalElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (state.currentTicketName != null) state.currentTicketName!! else "Ticket",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        // Open tickets button with badge
+                        BadgedBox(
+                            badge = {
+                                if (state.openTickets.isNotEmpty()) {
+                                    Badge { Text("${state.openTickets.size}") }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { viewModel.showTicketList() }) {
+                                Icon(Icons.Filled.TableBar, "Open Tickets")
                             }
                         }
                     }
                 }
-            },
-            navigationIcon = {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Filled.Menu, "Menu")
+                // Cart content
+                if (state.showCheckout) {
+                    TabletCheckoutPanel(state = state, settings = settings, viewModel = viewModel)
+                } else {
+                    TabletCartContent(state = state, settings = settings, viewModel = viewModel)
                 }
-            },
-            actions = {
-                // Search button
-                IconButton(onClick = { showSearchDialog = true }) {
-                    Icon(Icons.Filled.Search, "Cari")
-                }
-                // Table/Ticket button with badge
-                BadgedBox(
-                    badge = {
-                        if (state.openTickets.isNotEmpty()) {
-                            Badge { Text("${state.openTickets.size}") }
+            }
+        }
+    } else {
+        // Phone layout - keep original structure
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+        ) {
+            TopAppBar(
+                title = {
+                    if (isSearchActive) {
+                        TextField(
+                            value = state.searchQuery,
+                            onValueChange = { viewModel.searchProducts(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(
+                                    "Cari produk...",
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                )
+                            },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                cursorColor = MaterialTheme.colorScheme.onPrimary,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            textStyle = MaterialTheme.typography.bodyLarge
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                if (state.currentTicketName != null) state.currentTicketName!! else "Kasir",
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            // Category dropdown
+                            Box {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { categoryDropdownExpanded = true },
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            state.categories.find { it.id == state.selectedCategoryId }?.name ?: "All items",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(
+                                            if (categoryDropdownExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = categoryDropdownExpanded,
+                                    onDismissRequest = { categoryDropdownExpanded = false },
+                                    modifier = Modifier.widthIn(min = 180.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("All items") },
+                                        onClick = {
+                                            viewModel.selectCategory(null)
+                                            categoryDropdownExpanded = false
+                                        },
+                                        leadingIcon = {
+                                            if (state.selectedCategoryId == null) {
+                                                Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                            }
+                                        }
+                                    )
+                                    state.categories.forEach { category ->
+                                        DropdownMenuItem(
+                                            text = { Text(category.name) },
+                                            onClick = {
+                                                viewModel.selectCategory(category.id)
+                                                categoryDropdownExpanded = false
+                                            },
+                                            leadingIcon = {
+                                                if (state.selectedCategoryId == category.id) {
+                                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-                ) {
-                    IconButton(onClick = { viewModel.showTicketList() }) {
-                        Icon(Icons.Filled.TableBar, "Open Tickets")
+                },
+                navigationIcon = {
+                    if (isSearchActive) {
+                        IconButton(onClick = {
+                            isSearchActive = false
+                            viewModel.searchProducts("")
+                        }) {
+                            Icon(Icons.Filled.ArrowBack, "Tutup")
+                        }
+                    } else {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(Icons.Filled.Menu, "Menu")
+                        }
                     }
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                },
+                actions = {
+                    if (isSearchActive) {
+                        if (state.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.searchProducts("") }) {
+                                Icon(Icons.Filled.Close, "Hapus")
+                            }
+                        }
+                    } else {
+                        IconButton(onClick = { isSearchActive = true }) {
+                            Icon(Icons.Filled.Search, "Cari")
+                        }
+                        BadgedBox(
+                            badge = {
+                                if (state.openTickets.isNotEmpty()) {
+                                    Badge { Text("${state.openTickets.size}") }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { viewModel.showTicketList() }) {
+                                Icon(Icons.Filled.TableBar, "Open Tickets")
+                            }
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                )
             )
-        )
 
-        if (isTablet) {
-            TabletLayout(
-                state = state,
-                settings = settings,
-                viewModel = viewModel
-            )
-        } else {
             PhoneLayout(
                 state = state,
                 settings = settings,
@@ -282,108 +479,15 @@ fun PosScreen(
     }
 }
 
-// ========================= TABLET LAYOUT =========================
+// ========================= TABLET CART CONTENT =========================
 
 @Composable
-private fun TabletLayout(
+private fun TabletCartContent(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left: Products
-        Column(
-            modifier = Modifier
-                .weight(0.7f)
-                .fillMaxHeight()
-        ) {
-            ProductPanel(state = state, settings = settings, viewModel = viewModel)
-        }
-
-        VerticalDivider()
-
-        // Right: Cart
-        Column(
-            modifier = Modifier
-                .weight(0.3f)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-        ) {
-            if (state.showCheckout) {
-                TabletCheckoutPanel(state = state, settings = settings, viewModel = viewModel)
-            } else {
-                TabletCartPanel(state = state, settings = settings, viewModel = viewModel)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TabletCartPanel(
-    state: PosUiState,
-    settings: com.lokalpos.app.util.SettingsManager,
-    viewModel: PosViewModel
-) {
-    var showMoreMenu by remember { mutableStateOf(false) }
-
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header like screenshot's "Ticket" section
-        Surface(
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (state.currentTicketName != null) state.currentTicketName!! else "Ticket",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Row {
-                    // Save ticket button
-                    if (state.cart.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.showTicketDialog() }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Filled.Save, "Save Ticket", Modifier.size(20.dp))
-                        }
-                    }
-                    Box {
-                        IconButton(onClick = { showMoreMenu = true }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Filled.MoreVert, "More", Modifier.size(20.dp))
-                        }
-                        DropdownMenu(
-                            expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false }
-                        ) {
-                            if (state.cart.isNotEmpty()) {
-                                DropdownMenuItem(
-                                    text = { Text("Simpan Meja") },
-                                    onClick = {
-                                        showMoreMenu = false
-                                        viewModel.showTicketDialog()
-                                    },
-                                    leadingIcon = { Icon(Icons.Filled.Save, null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Hapus Semua") },
-                                    onClick = {
-                                        showMoreMenu = false
-                                        viewModel.clearCart()
-                                    },
-                                    leadingIcon = { Icon(Icons.Filled.Delete, null) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         if (state.cart.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -443,47 +547,14 @@ private fun TabletCartPanel(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { viewModel.showTicketList() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = SuccessGreen
-                        )
-                    ) { Text("OPEN TICKETS") }
+                        onClick = { viewModel.showTicketDialog() },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("SIMPAN") }
                     Button(
                         onClick = { viewModel.toggleCheckout() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = SuccessGreen
-                        )
-                    ) { Text("CHARGE") }
+                        modifier = Modifier.weight(1f)
+                    ) { Text("BAYAR") }
                 }
-            }
-        }
-
-        // Bottom buttons - always visible even when cart is empty
-        if (state.cart.isEmpty()) {
-            Spacer(Modifier.weight(1f))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.showTicketList() },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = SuccessGreen
-                    )
-                ) { Text("OPEN TICKETS") }
-                Button(
-                    onClick = { },
-                    modifier = Modifier.weight(1f),
-                    enabled = false,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = SuccessGreen
-                    )
-                ) { Text("CHARGE") }
             }
         }
     }
@@ -565,31 +636,70 @@ private fun PhoneLayout(
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
+    var showCartExpanded by remember { mutableStateOf(false) }
+
     if (state.showCheckout) {
         PhoneCheckoutView(state = state, settings = settings, viewModel = viewModel)
     } else {
         Column(modifier = Modifier.fillMaxSize()) {
+            // Product panel takes remaining space
             Column(modifier = Modifier.weight(1f)) {
                 ProductPanel(state = state, settings = settings, viewModel = viewModel)
             }
 
+            // Cart section
             if (state.cart.isNotEmpty()) {
                 Surface(tonalElevation = 8.dp, shadowElevation = 8.dp) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column {
+                        // Cart header - clickable to expand/collapse
                         Row(
-                            Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showCartExpanded = !showCartExpanded }
+                                .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${state.cartItemCount} item", style = MaterialTheme.typography.bodyMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (showCartExpanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                                    contentDescription = if (showCartExpanded) "Tutup" else "Buka",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("${state.cartItemCount} item", style = MaterialTheme.typography.bodyMedium)
+                            }
                             Text(
                                 settings.formatCurrency(state.total),
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                        // Expandable cart items list
+                        if (showCartExpanded) {
+                            HorizontalDivider()
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 250.dp),
+                                contentPadding = PaddingValues(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(state.cart) { cartItem ->
+                                    CartItemRow(cartItem, settings, viewModel)
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+
+                        // Action buttons
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             OutlinedButton(
                                 onClick = { viewModel.clearCart() },
                                 modifier = Modifier.weight(1f),
@@ -654,75 +764,88 @@ private fun PhoneCheckoutView(
                 .fillMaxSize()
                 .padding(padding)
                 .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
         ) {
-            // Cart items
-            state.cart.forEach { cartItem ->
-                CartItemRowSimple(cartItem, settings)
-                Spacer(Modifier.height(4.dp))
-            }
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            if (state.taxAmount > 0) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
-                    Text(settings.formatCurrency(state.taxAmount))
-                }
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    settings.formatCurrency(state.total),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            Spacer(Modifier.height(16.dp))
-            Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+            // Cart items - scrollable with edit/delete capability
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(settings.getPaymentMethodsList()) { method ->
-                    FilterChip(
-                        selected = state.paymentMethod == method,
-                        onClick = { viewModel.setPaymentMethod(method) },
-                        label = { Text(method) }
-                    )
+                items(state.cart) { cartItem ->
+                    CartItemRow(cartItem, settings, viewModel)
                 }
             }
-            Spacer(Modifier.height(12.dp))
 
-            if (state.paymentMethod == "Tunai") {
-                CashPaymentInput(state, settings, viewModel)
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Button(
-                onClick = { viewModel.processPayment() },
+            // Payment section - fixed at bottom
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                enabled = state.canPay && !state.isProcessing,
-                shape = RoundedCornerShape(12.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
             ) {
-                if (state.isProcessing) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Icon(Icons.Filled.Payment, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 16.sp)
-                }
-            }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            Spacer(Modifier.height(16.dp))
+                if (state.taxAmount > 0) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
+                        Text(settings.formatCurrency(state.taxAmount))
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        settings.formatCurrency(state.total),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(settings.getPaymentMethodsList()) { method ->
+                        FilterChip(
+                            selected = state.paymentMethod == method,
+                            onClick = { viewModel.setPaymentMethod(method) },
+                            label = { Text(method) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                if (state.paymentMethod == "Tunai") {
+                    CashPaymentInput(state, settings, viewModel)
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Button(
+                    onClick = { viewModel.processPayment() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = state.canPay && !state.isProcessing,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (state.isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Icon(Icons.Filled.Payment, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 16.sp)
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+            }
         }
     }
 }
