@@ -902,6 +902,17 @@ private fun ProductPanel(
 
         // Product display - Grid or List based on settings
         val isGridMode = settings.displayMode == "grid"
+        
+        // Sort products: symbols/numbers first, then alphabetical A-Z
+        val sortedProducts = remember(state.products) {
+            state.products.sortedWith(compareBy { product ->
+                val firstChar = product.name.firstOrNull() ?: 'z'
+                when {
+                    !firstChar.isLetter() -> "0${product.name.lowercase()}"
+                    else -> "1${product.name.lowercase()}"
+                }
+            })
+        }
 
         if (isGridMode) {
             // Product grid
@@ -912,7 +923,7 @@ private fun ProductPanel(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                items(state.products, key = { it.id }) { product ->
+                items(sortedProducts, key = { it.id }) { product ->
                     ProductGridItem(
                         product = product,
                         currencySymbol = settings.currencySymbol,
@@ -927,7 +938,7 @@ private fun ProductPanel(
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(state.products, key = { it.id }) { product ->
+                items(sortedProducts, key = { it.id }) { product ->
                     ProductListItem(
                         product = product,
                         settings = settings,
