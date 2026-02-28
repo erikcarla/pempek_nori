@@ -1061,42 +1061,37 @@ private fun CartItemRow(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
-    val deleteButtonWidth = 80f
-    val swipeThreshold = 50f // threshold to trigger swipe
-    val swipeOffset = 100f // how far card moves when swiped
+    val swipeThreshold = 50f
+    val swipeOffset = 100f
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        // Delete button background (appears when swiped)
-        if (offsetX < 0 || isSwiped) {
-            Box(
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.error) // Red background that shows when swiped
+    ) {
+        // Delete icon on the right
+        Box(
+            modifier = Modifier
+                .matchParentSize(),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = "Hapus",
+                tint = Color.White,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .matchParentSize()
-                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                // Clickable delete button - icon only
-                Box(
-                    modifier = Modifier
-                        .width(80.dp)
-                        .fillMaxHeight()
-                        .clickable {
-                            viewModel.removeFromCart(cartItem.product.id)
-                            isSwiped = false
-                            offsetX = 0f
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Hapus",
-                        tint = Color.White,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
+                    .padding(end = 36.dp)
+                    .size(28.dp)
+                    .clickable {
+                        viewModel.removeFromCart(cartItem.product.id)
+                        isSwiped = false
+                        offsetX = 0f
+                    }
+            )
         }
 
+        // White card that slides to reveal red background
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1104,12 +1099,10 @@ private fun CartItemRow(
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            // If swiped past threshold, snap to show delete button
                             if (offsetX < -swipeThreshold) {
                                 offsetX = -swipeOffset
                                 isSwiped = true
                             } else {
-                                // Snap back
                                 offsetX = 0f
                                 isSwiped = false
                             }
@@ -1121,14 +1114,17 @@ private fun CartItemRow(
                 }
                 .clickable {
                     if (isSwiped) {
-                        // If swiped, tap to close
                         offsetX = 0f
                         isSwiped = false
                     } else {
                         viewModel.showQuantityDialog(cartItem)
                     }
                 },
-            shape = RoundedCornerShape(8.dp)
+            shape = RoundedCornerShape(8.dp),
+            elevation = CardDefaults.cardElevation(2.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
             Row(
                 modifier = Modifier
