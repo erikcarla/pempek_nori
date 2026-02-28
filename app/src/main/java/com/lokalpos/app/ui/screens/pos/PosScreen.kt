@@ -587,6 +587,7 @@ private fun TabletCartContent(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TabletCheckoutPanel(
     state: PosUiState,
@@ -618,7 +619,7 @@ private fun TabletCheckoutPanel(
 
         Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-
+        
         // Payment methods - wrap to next line for tablet, 2 per row
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -629,11 +630,11 @@ private fun TabletCheckoutPanel(
                 FilterChip(
                     selected = state.paymentMethod == method,
                     onClick = { viewModel.setPaymentMethod(method) },
-                    label = {
+                    label = { 
                         Text(
                             method,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        ) 
                     },
                     modifier = Modifier.widthIn(min = 120.dp)
                 )
