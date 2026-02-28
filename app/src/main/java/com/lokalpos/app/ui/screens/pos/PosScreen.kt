@@ -818,7 +818,7 @@ private fun PhoneCheckoutView(
                 }
 
                 Spacer(Modifier.height(8.dp))
-                
+
                 // Payment methods - no label
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -832,7 +832,7 @@ private fun PhoneCheckoutView(
                         )
                     }
                 }
-                
+
                 Spacer(Modifier.height(8.dp))
 
                 if (state.paymentMethod == "Tunai") {
@@ -1061,7 +1061,9 @@ private fun CartItemRow(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
-    val deleteButtonWidth = 100f
+    val deleteButtonWidth = 80f
+    val swipeThreshold = 50f // threshold to trigger swipe
+    val swipeOffset = 100f // how far card moves when swiped
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // Delete button background (appears when swiped)
@@ -1076,7 +1078,7 @@ private fun CartItemRow(
                 // Clickable delete button - icon only
                 Box(
                     modifier = Modifier
-                        .width(100.dp)
+                        .width(80.dp)
                         .fillMaxHeight()
                         .clickable {
                             viewModel.removeFromCart(cartItem.product.id)
@@ -1089,7 +1091,7 @@ private fun CartItemRow(
                         Icons.Filled.Delete,
                         contentDescription = "Hapus",
                         tint = Color.White,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
@@ -1102,9 +1104,9 @@ private fun CartItemRow(
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            // If swiped past threshold, keep it open
-                            if (offsetX < -deleteButtonWidth) {
-                                offsetX = -deleteButtonWidth
+                            // If swiped past threshold, snap to show delete button
+                            if (offsetX < -swipeThreshold) {
+                                offsetX = -swipeOffset
                                 isSwiped = true
                             } else {
                                 // Snap back
@@ -1113,7 +1115,7 @@ private fun CartItemRow(
                             }
                         },
                         onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(-deleteButtonWidth - 20f, 0f)
+                            offsetX = (offsetX + dragAmount).coerceIn(-swipeOffset - 20f, 0f)
                         }
                     )
                 }
