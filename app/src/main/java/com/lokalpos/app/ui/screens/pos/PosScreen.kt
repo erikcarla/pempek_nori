@@ -322,32 +322,39 @@ fun PosScreen(
             }
         }
     } else {
-        // Phone layout - keep original structure
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .systemBarsPadding()
-        ) {
-            TopAppBar(
-                title = {
-                    if (isSearchActive) {
-                        TextField(
-                            value = state.searchQuery,
-                            onValueChange = { viewModel.searchProducts(it) },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = {
-                                Text(
-                                    "Cari produk...",
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                )
-                            },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                cursorColor = MaterialTheme.colorScheme.onPrimary,
+        // Phone layout
+        // If checkout is showing, display PhoneCheckoutView directly (no Kasir header)
+        if (state.showCheckout) {
+            Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+                PhoneCheckoutView(state = state, settings = settings, viewModel = viewModel)
+            }
+        } else {
+            // Normal phone layout with Kasir header
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+            ) {
+                TopAppBar(
+                    title = {
+                        if (isSearchActive) {
+                            TextField(
+                                value = state.searchQuery,
+                                onValueChange = { viewModel.searchProducts(it) },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(
+                                        "Cari produk...",
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                    )
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    cursorColor = MaterialTheme.colorScheme.onPrimary,
                                 focusedIndicatorColor = Color.Transparent,
                                 unfocusedIndicatorColor = Color.Transparent
                             ),
@@ -470,11 +477,12 @@ fun PosScreen(
                 )
             )
 
-            PhoneLayout(
+            PhoneProductsView(
                 state = state,
                 settings = settings,
                 viewModel = viewModel
             )
+            }
         }
     }
 }
@@ -640,56 +648,53 @@ private fun TabletCheckoutPanel(
 // ========================= PHONE LAYOUT =========================
 
 @Composable
-private fun PhoneLayout(
+private fun PhoneProductsView(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
     var showCartExpanded by remember { mutableStateOf(false) }
 
-    if (state.showCheckout) {
-        PhoneCheckoutView(state = state, settings = settings, viewModel = viewModel)
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Product panel takes remaining space
-            Column(modifier = Modifier.weight(1f)) {
-                ProductPanel(state = state, settings = settings, viewModel = viewModel)
-            }
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Product panel takes remaining space
+        Column(modifier = Modifier.weight(1f)) {
+            ProductPanel(state = state, settings = settings, viewModel = viewModel)
+        }
 
-            // Cart section
-            if (state.cart.isNotEmpty()) {
-                Surface(tonalElevation = 8.dp, shadowElevation = 8.dp) {
-                    Column {
-                        // Cart header - clickable to expand/collapse
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showCartExpanded = !showCartExpanded }
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    if (showCartExpanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
-                                    contentDescription = if (showCartExpanded) "Tutup" else "Buka",
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text("${state.cartItemCount} item", style = MaterialTheme.typography.bodyMedium)
-                            }
-                            Text(
-                                settings.formatCurrency(state.total),
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
+        // Cart section
+        if (state.cart.isNotEmpty()) {
+            Surface(tonalElevation = 8.dp, shadowElevation = 8.dp) {
+                Column {
+                    // Cart header - clickable to expand/collapse
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showCartExpanded = !showCartExpanded }
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (showCartExpanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                                contentDescription = if (showCartExpanded) "Tutup" else "Buka",
+                                modifier = Modifier.size(20.dp)
                             )
+                            Spacer(Modifier.width(8.dp))
+                            Text("${state.cartItemCount} item", style = MaterialTheme.typography.bodyMedium)
                         }
+                        Text(
+                            settings.formatCurrency(state.total),
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
 
-                        // Expandable cart items list
-                        if (showCartExpanded) {
-                            HorizontalDivider()
-                            LazyColumn(
-                                modifier = Modifier
+                    // Expandable cart items list
+                    if (showCartExpanded) {
+                        HorizontalDivider()
+                        LazyColumn(
+                            modifier = Modifier
                                     .fillMaxWidth()
                                     .heightIn(max = 250.dp),
                                 contentPadding = PaddingValues(8.dp),
@@ -741,7 +746,6 @@ private fun PhoneLayout(
                 }
             }
         }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1057,7 +1061,7 @@ private fun CartItemRow(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
-    val deleteButtonWidth = 60f
+    val deleteButtonWidth = 100f
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // Delete button background (appears when swiped)
@@ -1072,7 +1076,7 @@ private fun CartItemRow(
                 // Clickable delete button - icon only
                 Box(
                     modifier = Modifier
-                        .width(60.dp)
+                        .width(100.dp)
                         .fillMaxHeight()
                         .clickable {
                             viewModel.removeFromCart(cartItem.product.id)
