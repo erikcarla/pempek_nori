@@ -1061,33 +1061,35 @@ private fun CartItemRow(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
-    val swipeThreshold = 50f
-    val swipeOffset = 100f
+    val swipeThreshold = 40f
+    val swipeOffset = 70f
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.error) // Red background that shows when swiped
+            .height(IntrinsicSize.Min)
     ) {
-        // Delete icon on the right
-        Box(
+        // Red background with delete icon - always present behind the card
+        Row(
             modifier = Modifier
-                .matchParentSize(),
-            contentAlignment = Alignment.CenterEnd
+                .fillMaxSize()
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.error)
+                .clickable {
+                    viewModel.removeFromCart(cartItem.entryId)
+                    isSwiped = false
+                    offsetX = 0f
+                },
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Filled.Delete,
                 contentDescription = "Hapus",
                 tint = Color.White,
                 modifier = Modifier
-                    .padding(end = 36.dp)
-                    .size(28.dp)
-                    .clickable {
-                        viewModel.removeFromCart(cartItem.entryId)
-                        isSwiped = false
-                        offsetX = 0f
-                    }
+                    .padding(horizontal = 24.dp)
+                    .size(24.dp)
             )
         }
 
