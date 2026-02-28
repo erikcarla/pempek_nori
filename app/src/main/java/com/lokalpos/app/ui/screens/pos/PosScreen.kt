@@ -546,6 +546,15 @@ private fun TabletCartContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Delete button
+                    OutlinedButton(
+                        onClick = { viewModel.clearCart() },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Filled.Delete, "Hapus", Modifier.size(20.dp))
+                    }
                     OutlinedButton(
                         onClick = { viewModel.showTicketDialog() },
                         modifier = Modifier.weight(1f)
@@ -783,9 +792,9 @@ private fun PhoneCheckoutView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 if (state.taxAmount > 0) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -804,9 +813,9 @@ private fun PhoneCheckoutView(
                     )
                 }
 
-                Spacer(Modifier.height(16.dp))
-                Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
+                
+                // Payment methods - no label
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -819,32 +828,30 @@ private fun PhoneCheckoutView(
                         )
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                
+                Spacer(Modifier.height(8.dp))
 
                 if (state.paymentMethod == "Tunai") {
                     CashPaymentInput(state, settings, viewModel)
+                    Spacer(Modifier.height(8.dp))
                 }
-
-                Spacer(Modifier.height(16.dp))
 
                 Button(
                     onClick = { viewModel.processPayment() },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
+                        .height(48.dp),
                     enabled = state.canPay && !state.isProcessing,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(8.dp)
                 ) {
                     if (state.isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
-                        Icon(Icons.Filled.Payment, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 16.sp)
+                        Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 14.sp)
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
@@ -902,7 +909,7 @@ private fun ProductPanel(
 
         // Product display - Grid or List based on settings
         val isGridMode = settings.displayMode == "grid"
-        
+
         // Sort products: symbols/numbers first, then alphabetical A-Z
         val sortedProducts = remember(state.products) {
             state.products.sortedWith(compareBy { product ->
@@ -1050,7 +1057,7 @@ private fun CartItemRow(
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
-    val deleteButtonWidth = 80f
+    val deleteButtonWidth = 60f
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // Delete button background (appears when swiped)
@@ -1062,10 +1069,10 @@ private fun CartItemRow(
                     .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                // Clickable delete button
+                // Clickable delete button - icon only
                 Box(
                     modifier = Modifier
-                        .width(80.dp)
+                        .width(60.dp)
                         .fillMaxHeight()
                         .clickable {
                             viewModel.removeFromCart(cartItem.product.id)
@@ -1074,20 +1081,12 @@ private fun CartItemRow(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Hapus",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            "Hapus",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Hapus",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }
