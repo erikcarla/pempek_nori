@@ -587,7 +587,6 @@ private fun TabletCartContent(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TabletCheckoutPanel(
     state: PosUiState,
@@ -619,25 +618,57 @@ private fun TabletCheckoutPanel(
 
         Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-        
-        // Payment methods - wrap to next line for tablet, 2 per row
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+
+        // Payment methods - 2 columns: 7.5% | 40% | 5% | 40% | 7.5%
+        val paymentMethods = settings.getPaymentMethodsList()
+        Column(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            settings.getPaymentMethodsList().forEach { method ->
-                FilterChip(
-                    selected = state.paymentMethod == method,
-                    onClick = { viewModel.setPaymentMethod(method) },
-                    label = { 
-                        Text(
-                            method,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) 
-                    },
-                    modifier = Modifier.widthIn(min = 120.dp)
-                )
+            paymentMethods.chunked(2).forEach { rowMethods ->
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Spacer(Modifier.weight(0.075f)) // 7.5% left margin
+
+                    // First chip
+                    if (rowMethods.isNotEmpty()) {
+                        FilterChip(
+                            selected = state.paymentMethod == rowMethods[0],
+                            onClick = { viewModel.setPaymentMethod(rowMethods[0]) },
+                            label = {
+                                Text(
+                                    rowMethods[0],
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+                            },
+                            modifier = Modifier.weight(0.4f) // 40%
+                        )
+                    }
+
+                    Spacer(Modifier.weight(0.05f)) // 5% gap
+
+                    // Second chip
+                    if (rowMethods.size > 1) {
+                        FilterChip(
+                            selected = state.paymentMethod == rowMethods[1],
+                            onClick = { viewModel.setPaymentMethod(rowMethods[1]) },
+                            label = {
+                                Text(
+                                    rowMethods[1],
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+                            },
+                            modifier = Modifier.weight(0.4f) // 40%
+                        )
+                    } else {
+                        Spacer(Modifier.weight(0.4f)) // 40% empty if odd
+                    }
+
+                    Spacer(Modifier.weight(0.075f)) // 7.5% right margin
+                }
             }
         }
 
@@ -990,13 +1021,27 @@ private fun ProductGridItem(
     currencySymbol: String,
     onClick: () -> Unit
 ) {
+    val cardColor = if (product.color != null) {
+        try {
+            Color(android.graphics.Color.parseColor(product.color))
+        } catch (e: Exception) {
+            MaterialTheme.colorScheme.surface
+        }
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    val textColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.onSurface
+    val priceColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.primary
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
+        elevation = CardDefaults.cardElevation(1.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier
@@ -1007,24 +1052,25 @@ private fun ProductGridItem(
         ) {
             Text(
                 text = product.name,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp,
-                fontWeight = FontWeight.Medium
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = textColor
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "$currencySymbol%,d".format(product.price.toLong()),
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = priceColor
             )
             if (product.trackStock && product.inStock <= product.lowStockAlert) {
                 Text(
                     text = "Stok: ${product.inStock}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
+                    color = if (product.color != null) Color.Yellow else MaterialTheme.colorScheme.error
                 )
             }
         }
@@ -1037,12 +1083,26 @@ private fun ProductListItem(
     settings: com.lokalpos.app.util.SettingsManager,
     onClick: () -> Unit
 ) {
+    val cardColor = if (product.color != null) {
+        try {
+            Color(android.graphics.Color.parseColor(product.color))
+        } catch (e: Exception) {
+            MaterialTheme.colorScheme.surface
+        }
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    val textColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.onSurface
+    val priceColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.primary
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
+        elevation = CardDefaults.cardElevation(1.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(
             modifier = Modifier
@@ -1054,23 +1114,24 @@ private fun ProductListItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = product.name,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = textColor
                 )
                 if (product.trackStock && product.inStock <= product.lowStockAlert) {
                     Text(
                         text = "Stok: ${product.inStock}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = if (product.color != null) Color.Yellow else MaterialTheme.colorScheme.error
                     )
                 }
             }
             Text(
                 text = settings.formatCurrency(product.price),
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                color = priceColor
             )
         }
     }
