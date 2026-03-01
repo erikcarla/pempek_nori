@@ -7,9 +7,11 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -119,112 +122,391 @@ fun PosScreen(
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .systemBarsPadding()
-    ) {
-        TopAppBar(
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (state.currentTicketName != null) "Kasir - ${state.currentTicketName}" else "Kasir"
+    var categoryDropdownExpanded by remember { mutableStateOf(false) }
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    // For tablet: use Row layout with separate headers
+    if (isTablet) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+        ) {
+            // Left side: Product area (70%)
+            Column(
+                modifier = Modifier
+                    .weight(0.7f)
+                    .fillMaxHeight()
+            ) {
+                // Product header (green)
+                TopAppBar(
+                    title = {
+                        if (isSearchActive) {
+                            TextField(
+                                value = state.searchQuery,
+                                onValueChange = { viewModel.searchProducts(it) },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(
+                                        "Cari produk...",
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                    )
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    cursorColor = MaterialTheme.colorScheme.onPrimary,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                ),
+                                textStyle = MaterialTheme.typography.bodyLarge
+                            )
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if (state.currentTicketName != null) state.currentTicketName!! else "Kasir",
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                                // Category dropdown
+                                Box {
+                                    Surface(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { categoryDropdownExpanded = true },
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                state.categories.find { it.id == state.selectedCategoryId }?.name ?: "All items",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Icon(
+                                                if (categoryDropdownExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = categoryDropdownExpanded,
+                                        onDismissRequest = { categoryDropdownExpanded = false },
+                                        modifier = Modifier.widthIn(min = 180.dp)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("All items") },
+                                            onClick = {
+                                                viewModel.selectCategory(null)
+                                                categoryDropdownExpanded = false
+                                            },
+                                            leadingIcon = {
+                                                if (state.selectedCategoryId == null) {
+                                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                                }
+                                            }
+                                        )
+                                        state.categories.forEach { category ->
+                                            DropdownMenuItem(
+                                                text = { Text(category.name) },
+                                                onClick = {
+                                                    viewModel.selectCategory(category.id)
+                                                    categoryDropdownExpanded = false
+                                                },
+                                                leadingIcon = {
+                                                    if (state.selectedCategoryId == category.id) {
+                                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        if (isSearchActive) {
+                            IconButton(onClick = {
+                                isSearchActive = false
+                                viewModel.searchProducts("")
+                            }) {
+                                Icon(Icons.Filled.ArrowBack, "Tutup")
+                            }
+                        } else {
+                            IconButton(onClick = onOpenDrawer) {
+                                Icon(Icons.Filled.Menu, "Menu")
+                            }
+                        }
+                    },
+                    actions = {
+                        if (isSearchActive) {
+                            if (state.searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.searchProducts("") }) {
+                                    Icon(Icons.Filled.Close, "Hapus")
+                                }
+                            }
+                        } else {
+                            IconButton(onClick = { isSearchActive = true }) {
+                                Icon(Icons.Filled.Search, "Cari")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                     )
-                    if (state.openTickets.isNotEmpty()) {
-                        Spacer(Modifier.width(8.dp))
-                        Badge { Text("${state.openTickets.size}") }
+                )
+                // Products
+                ProductPanel(state = state, settings = settings, viewModel = viewModel)
+            }
+
+            VerticalDivider()
+
+            // Right side: Cart area (30%)
+            Column(
+                modifier = Modifier
+                    .weight(0.3f)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            ) {
+                // Cart header (white/surface color like "Ticket" in screenshot)
+                Surface(
+                    tonalElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (state.currentTicketName != null) state.currentTicketName!! else "Ticket",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (state.cart.isNotEmpty()) {
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "(${state.cartItemCount} item)",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        // Open tickets button with badge
+                        BadgedBox(
+                            badge = {
+                                if (state.openTickets.isNotEmpty()) {
+                                    Badge { Text("${state.openTickets.size}") }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { viewModel.showTicketList() }) {
+                                Icon(Icons.Filled.TableBar, "Open Tickets")
+                            }
+                        }
                     }
                 }
-            },
-            navigationIcon = {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Filled.Menu, "Menu")
+                // Cart content
+                if (state.showCheckout) {
+                    TabletCheckoutPanel(state = state, settings = settings, viewModel = viewModel)
+                } else {
+                    TabletCartContent(state = state, settings = settings, viewModel = viewModel)
                 }
-            },
-            actions = {
-                IconButton(onClick = { viewModel.showTicketList() }) {
-                    Icon(Icons.Filled.TableBar, "Open Tickets")
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
-            )
-        )
-
-        if (isTablet) {
-            TabletLayout(
-                state = state,
-                settings = settings,
-                viewModel = viewModel
-            )
+            }
+        }
+    } else {
+        // Phone layout
+        // If checkout is showing, display PhoneCheckoutView directly (no Kasir header)
+        if (state.showCheckout) {
+            Box(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+                PhoneCheckoutView(state = state, settings = settings, viewModel = viewModel)
+            }
         } else {
-            PhoneLayout(
+            // Normal phone layout with Kasir header
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+            ) {
+                TopAppBar(
+                    title = {
+                        if (isSearchActive) {
+                            TextField(
+                                value = state.searchQuery,
+                                onValueChange = { viewModel.searchProducts(it) },
+                                modifier = Modifier.fillMaxWidth(),
+                                placeholder = {
+                                    Text(
+                                        "Cari produk...",
+                                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                                    )
+                                },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                                    cursorColor = MaterialTheme.colorScheme.onPrimary,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            textStyle = MaterialTheme.typography.bodyLarge
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                if (state.currentTicketName != null) state.currentTicketName!! else "Kasir",
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            // Category dropdown
+                            Box {
+                                Surface(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { categoryDropdownExpanded = true },
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            state.categories.find { it.id == state.selectedCategoryId }?.name ?: "All items",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Icon(
+                                            if (categoryDropdownExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                DropdownMenu(
+                                    expanded = categoryDropdownExpanded,
+                                    onDismissRequest = { categoryDropdownExpanded = false },
+                                    modifier = Modifier.widthIn(min = 180.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("All items") },
+                                        onClick = {
+                                            viewModel.selectCategory(null)
+                                            categoryDropdownExpanded = false
+                                        },
+                                        leadingIcon = {
+                                            if (state.selectedCategoryId == null) {
+                                                Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                            }
+                                        }
+                                    )
+                                    state.categories.forEach { category ->
+                                        DropdownMenuItem(
+                                            text = { Text(category.name) },
+                                            onClick = {
+                                                viewModel.selectCategory(category.id)
+                                                categoryDropdownExpanded = false
+                                            },
+                                            leadingIcon = {
+                                                if (state.selectedCategoryId == category.id) {
+                                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                navigationIcon = {
+                    if (isSearchActive) {
+                        IconButton(onClick = {
+                            isSearchActive = false
+                            viewModel.searchProducts("")
+                        }) {
+                            Icon(Icons.Filled.ArrowBack, "Tutup")
+                        }
+                    } else {
+                        IconButton(onClick = onOpenDrawer) {
+                            Icon(Icons.Filled.Menu, "Menu")
+                        }
+                    }
+                },
+                actions = {
+                    if (isSearchActive) {
+                        if (state.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.searchProducts("") }) {
+                                Icon(Icons.Filled.Close, "Hapus")
+                            }
+                        }
+                    } else {
+                        IconButton(onClick = { isSearchActive = true }) {
+                            Icon(Icons.Filled.Search, "Cari")
+                        }
+                        BadgedBox(
+                            badge = {
+                                if (state.openTickets.isNotEmpty()) {
+                                    Badge { Text("${state.openTickets.size}") }
+                                }
+                            }
+                        ) {
+                            IconButton(onClick = { viewModel.showTicketList() }) {
+                                Icon(Icons.Filled.TableBar, "Open Tickets")
+                            }
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+
+            PhoneProductsView(
                 state = state,
                 settings = settings,
                 viewModel = viewModel
             )
-        }
-    }
-}
-
-// ========================= TABLET LAYOUT =========================
-
-@Composable
-private fun TabletLayout(
-    state: PosUiState,
-    settings: com.lokalpos.app.util.SettingsManager,
-    viewModel: PosViewModel
-) {
-    Row(modifier = Modifier.fillMaxSize()) {
-        // Left: Products
-        Column(
-            modifier = Modifier
-                .weight(0.7f)
-                .fillMaxHeight()
-        ) {
-            ProductPanel(state = state, settings = settings, viewModel = viewModel)
-        }
-
-        VerticalDivider()
-
-        // Right: Cart
-        Column(
-            modifier = Modifier
-                .weight(0.3f)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-        ) {
-            if (state.showCheckout) {
-                TabletCheckoutPanel(state = state, settings = settings, viewModel = viewModel)
-            } else {
-                TabletCartPanel(state = state, settings = settings, viewModel = viewModel)
             }
         }
     }
 }
 
+// ========================= TABLET CART CONTENT =========================
+
 @Composable
-private fun TabletCartPanel(
+private fun TabletCartContent(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Surface(
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                if (state.currentTicketName != null) state.currentTicketName!! else "Keranjang",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-
         if (state.cart.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -283,14 +565,23 @@ private fun TabletCartPanel(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Delete button
+                    OutlinedButton(
+                        onClick = { viewModel.clearCart() },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Filled.Delete, "Hapus", Modifier.size(20.dp))
+                    }
                     OutlinedButton(
                         onClick = { viewModel.showTicketDialog() },
                         modifier = Modifier.weight(1f)
-                    ) { Text("SIMPAN") }
+                    ) { Text("SAVE") }
                     Button(
                         onClick = { viewModel.toggleCheckout() },
                         modifier = Modifier.weight(1f)
-                    ) { Text("BAYAR ${settings.formatCurrency(state.total)}") }
+                    ) { Text("BAYAR") }
                 }
             }
         }
@@ -315,7 +606,7 @@ private fun TabletCheckoutPanel(
             Text("Pembayaran", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
 
         Text(
             "TOTAL: ${settings.formatCurrency(state.total)}",
@@ -324,17 +615,59 @@ private fun TabletCheckoutPanel(
             color = MaterialTheme.colorScheme.primary
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(4.dp))
 
-        Text("Metode Pembayaran", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(settings.paymentMethods.toList()) { method ->
-                FilterChip(
-                    selected = state.paymentMethod == method,
-                    onClick = { viewModel.setPaymentMethod(method) },
-                    label = { Text(method) }
-                )
+
+        // Payment methods - 2 columns: 5% | 43.75% | 2.5% | 43.75% | 5%
+        val paymentMethods = settings.getPaymentMethodsList()
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            paymentMethods.chunked(2).forEach { rowMethods ->
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Spacer(Modifier.weight(0.05f)) // 5% left margin
+
+                    // First chip
+                    if (rowMethods.isNotEmpty()) {
+                        FilterChip(
+                            selected = state.paymentMethod == rowMethods[0],
+                            onClick = { viewModel.setPaymentMethod(rowMethods[0]) },
+                            label = {
+                                Text(
+                                    rowMethods[0],
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+                            },
+                            modifier = Modifier.weight(0.4375f) // 43.75%
+                        )
+                    }
+
+                    Spacer(Modifier.weight(0.025f)) // 2.5% gap
+
+                    // Second chip
+                    if (rowMethods.size > 1) {
+                        FilterChip(
+                            selected = state.paymentMethod == rowMethods[1],
+                            onClick = { viewModel.setPaymentMethod(rowMethods[1]) },
+                            label = {
+                                Text(
+                                    rowMethods[1],
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+                            },
+                            modifier = Modifier.weight(0.4375f) // 43.75%
+                        )
+                    } else {
+                        Spacer(Modifier.weight(0.4375f)) // 43.75% empty if odd
+                    }
+
+                    Spacer(Modifier.weight(0.05f)) // 5% right margin
+                }
             }
         }
 
@@ -368,36 +701,72 @@ private fun TabletCheckoutPanel(
 // ========================= PHONE LAYOUT =========================
 
 @Composable
-private fun PhoneLayout(
+private fun PhoneProductsView(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    if (state.showCheckout) {
-        PhoneCheckoutView(state = state, settings = settings, viewModel = viewModel)
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.weight(1f)) {
-                ProductPanel(state = state, settings = settings, viewModel = viewModel)
-            }
+    var showCartExpanded by remember { mutableStateOf(false) }
 
-            if (state.cart.isNotEmpty()) {
-                Surface(tonalElevation = 8.dp, shadowElevation = 8.dp) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("${state.cartItemCount} item", style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                settings.formatCurrency(state.total),
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Product panel takes remaining space
+        Column(modifier = Modifier.weight(1f)) {
+            ProductPanel(state = state, settings = settings, viewModel = viewModel)
+        }
+
+        // Cart section
+        if (state.cart.isNotEmpty()) {
+            Surface(tonalElevation = 8.dp, shadowElevation = 8.dp) {
+                Column {
+                    // Cart header - clickable to expand/collapse
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showCartExpanded = !showCartExpanded }
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (showCartExpanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                                contentDescription = if (showCartExpanded) "Tutup" else "Buka",
+                                modifier = Modifier.size(20.dp)
                             )
+                            Spacer(Modifier.width(8.dp))
+                            Text("${state.cartItemCount} item", style = MaterialTheme.typography.bodyMedium)
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            settings.formatCurrency(state.total),
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Expandable cart items list
+                    if (showCartExpanded) {
+                        HorizontalDivider()
+                        LazyColumn(
+                            modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 250.dp),
+                                contentPadding = PaddingValues(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(state.cart) { cartItem ->
+                                    CartItemRow(cartItem, settings, viewModel)
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+
+                        // Action buttons
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             OutlinedButton(
                                 onClick = { viewModel.clearCart() },
                                 modifier = Modifier.weight(1f),
@@ -414,7 +783,7 @@ private fun PhoneLayout(
                             ) {
                                 Icon(Icons.Filled.TableBar, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Simpan", fontSize = 12.sp)
+                                Text("Save", fontSize = 12.sp)
                             }
                             Button(
                                 onClick = { viewModel.toggleCheckout() },
@@ -430,90 +799,156 @@ private fun PhoneLayout(
                 }
             }
         }
-    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhoneCheckoutView(
     state: PosUiState,
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { viewModel.toggleCheckout() }) {
-                Icon(Icons.Filled.ArrowBack, "Kembali")
-            }
-            Text("Pembayaran", style = MaterialTheme.typography.titleLarge)
-        }
-
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(state.cart) { cartItem ->
-                CartItemRow(cartItem, settings, viewModel)
-            }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        if (state.taxAmount > 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
-                Text(settings.formatCurrency(state.taxAmount))
-            }
-        }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(
-                settings.formatCurrency(state.total),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Pembayaran") },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.toggleCheckout() }) {
+                        Icon(Icons.Filled.ArrowBack, "Kembali")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
+                )
             )
         }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
+        ) {
+            // Cart items - scrollable with edit/delete capability
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(state.cart) { cartItem ->
+                    CartItemRow(cartItem, settings, viewModel)
+                }
+            }
 
-        Spacer(Modifier.height(16.dp))
-        Text("Metode Pembayaran", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(settings.paymentMethods.toList()) { method ->
-                FilterChip(
-                    selected = state.paymentMethod == method,
-                    onClick = { viewModel.setPaymentMethod(method) },
-                    label = { Text(method) }
-                )
+            // Payment section - fixed at bottom
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                if (state.taxAmount > 0) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("PB1 (${state.taxPercent.toInt()}%${if (state.taxInclusive) ", inc" else ""})")
+                        Text(settings.formatCurrency(state.taxAmount))
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("TOTAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        settings.formatCurrency(state.total),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Payment methods - no label
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(settings.getPaymentMethodsList()) { method ->
+                        FilterChip(
+                            selected = state.paymentMethod == method,
+                            onClick = { viewModel.setPaymentMethod(method) },
+                            label = { Text(method) }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                if (state.paymentMethod == "Tunai") {
+                    CashPaymentInput(state, settings, viewModel)
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                Button(
+                    onClick = { viewModel.processPayment() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    enabled = state.canPay && !state.isProcessing,
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (state.isProcessing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 14.sp)
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
             }
         }
-        Spacer(Modifier.height(12.dp))
+    }
+}
 
-        if (state.paymentMethod == "Tunai") {
-            CashPaymentInput(state, settings, viewModel)
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Button(
-            onClick = { viewModel.processPayment() },
+// Simple cart item row for checkout view (non-swipeable)
+@Composable
+private fun CartItemRowSimple(
+    cartItem: CartItem,
+    settings: com.lokalpos.app.util.SettingsManager
+) {
+    Card(
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            enabled = state.canPay && !state.isProcessing,
-            shape = RoundedCornerShape(12.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (state.isProcessing) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                Icon(Icons.Filled.Payment, null)
-                Spacer(Modifier.width(8.dp))
-                Text("BAYAR ${settings.formatCurrency(state.total)}", fontSize = 16.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    cartItem.product.name,
+                    fontWeight = FontWeight.Medium,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "${cartItem.quantity} x ${settings.formatCurrency(cartItem.product.price)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+            Text(
+                settings.formatCurrency(cartItem.subtotal),
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
         }
     }
 }
@@ -527,116 +962,53 @@ private fun ProductPanel(
     settings: com.lokalpos.app.util.SettingsManager,
     viewModel: PosViewModel
 ) {
-    var showSearch by remember { mutableStateOf(false) }
-    var categoryDropdownExpanded by remember { mutableStateOf(false) }
-
     Column(modifier = Modifier.fillMaxSize()) {
-        // Category dropdown and search in same row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (showSearch) {
-                // Search mode
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = { viewModel.searchProducts(it) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    placeholder = { Text("Cari produk...", fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Filled.Search, null, Modifier.size(20.dp)) },
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            viewModel.searchProducts("")
-                            showSearch = false
-                        }) {
-                            Icon(Icons.Filled.Close, "Tutup", Modifier.size(20.dp))
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(24.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium
-                )
-            } else {
-                // Category dropdown
-                ExposedDropdownMenuBox(
-                    expanded = categoryDropdownExpanded,
-                    onExpandedChange = { categoryDropdownExpanded = it },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    OutlinedTextField(
-                        value = state.categories.find { it.id == state.selectedCategoryId }?.name ?: "Semua Kategori",
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                            .height(48.dp),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryDropdownExpanded) },
-                        shape = RoundedCornerShape(24.dp),
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        singleLine = true
-                    )
-                    ExposedDropdownMenu(
-                        expanded = categoryDropdownExpanded,
-                        onDismissRequest = { categoryDropdownExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Semua Kategori") },
-                            onClick = {
-                                viewModel.selectCategory(null)
-                                categoryDropdownExpanded = false
-                            },
-                            leadingIcon = {
-                                if (state.selectedCategoryId == null) {
-                                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
-                                }
-                            }
-                        )
-                        state.categories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category.name) },
-                                onClick = {
-                                    viewModel.selectCategory(category.id)
-                                    categoryDropdownExpanded = false
-                                },
-                                leadingIcon = {
-                                    if (state.selectedCategoryId == category.id) {
-                                        Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
 
-                // Search button
-                IconButton(
-                    onClick = { showSearch = true }
-                ) {
-                    Icon(Icons.Filled.Search, "Cari")
+        // Product display - Grid or List based on settings
+        val isGridMode = settings.displayMode == "grid"
+
+        // Sort products: symbols/numbers first, then alphabetical A-Z
+        val sortedProducts = remember(state.products) {
+            state.products.sortedWith(compareBy { product ->
+                val firstChar = product.name.firstOrNull() ?: 'z'
+                when {
+                    !firstChar.isLetter() -> "0${product.name.lowercase()}"
+                    else -> "1${product.name.lowercase()}"
                 }
-            }
+            })
         }
 
-        // Product grid
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(state.products, key = { it.id }) { product ->
-                ProductGridItem(
-                    product = product,
-                    currencySymbol = settings.currencySymbol,
-                    onClick = { viewModel.addToCart(product) }
-                )
+        if (isGridMode) {
+            // Product grid
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 100.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(sortedProducts, key = { it.id }) { product ->
+                    ProductGridItem(
+                        product = product,
+                        currencySymbol = settings.currencySymbol,
+                        onClick = { viewModel.addToCart(product) }
+                    )
+                }
+            }
+        } else {
+            // Product list
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(sortedProducts, key = { it.id }) { product ->
+                    ProductListItem(
+                        product = product,
+                        settings = settings,
+                        onClick = { viewModel.addToCart(product) }
+                    )
+                }
             }
         }
     }
@@ -648,13 +1020,27 @@ private fun ProductGridItem(
     currencySymbol: String,
     onClick: () -> Unit
 ) {
+    val cardColor = if (product.color != null) {
+        try {
+            Color(android.graphics.Color.parseColor(product.color))
+        } catch (e: Exception) {
+            MaterialTheme.colorScheme.surface
+        }
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    val textColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.onSurface
+    val priceColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.primary
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(1.dp)
+        elevation = CardDefaults.cardElevation(1.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Column(
             modifier = Modifier
@@ -665,26 +1051,87 @@ private fun ProductGridItem(
         ) {
             Text(
                 text = product.name,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
-                lineHeight = 14.sp,
-                fontWeight = FontWeight.Medium
+                lineHeight = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = textColor
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "$currencySymbol%,d".format(product.price.toLong()),
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = priceColor
             )
             if (product.trackStock && product.inStock <= product.lowStockAlert) {
                 Text(
                     text = "Stok: ${product.inStock}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
+                    color = if (product.color != null) Color.Yellow else MaterialTheme.colorScheme.error
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ProductListItem(
+    product: com.lokalpos.app.data.entity.Product,
+    settings: com.lokalpos.app.util.SettingsManager,
+    onClick: () -> Unit
+) {
+    val cardColor = if (product.color != null) {
+        try {
+            Color(android.graphics.Color.parseColor(product.color))
+        } catch (e: Exception) {
+            MaterialTheme.colorScheme.surface
+        }
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
+    val textColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.onSurface
+    val priceColor = if (product.color != null) Color.White else MaterialTheme.colorScheme.primary
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(1.dp),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = product.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = textColor
+                )
+                if (product.trackStock && product.inStock <= product.lowStockAlert) {
+                    Text(
+                        text = "Stok: ${product.inStock}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (product.color != null) Color.Yellow else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Text(
+                text = settings.formatCurrency(product.price),
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                color = priceColor
+            )
         }
     }
 }
@@ -696,27 +1143,42 @@ private fun CartItemRow(
     viewModel: PosViewModel
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
-    val deleteThreshold = -100f
+    var isSwiped by remember { mutableStateOf(false) }
+    val swipeThreshold = 40f
+    val swipeOffset = 130f
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        // Delete background
-        if (offsetX < 0) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .matchParentSize()
-                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.CenterEnd
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(8.dp))
+    ) {
+        // Red background with delete icon
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.error),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {
+                    viewModel.removeFromCart(cartItem.entryId)
+                    isSwiped = false
+                    offsetX = 0f
+                },
+                modifier = Modifier.padding(end = 8.dp)
             ) {
                 Icon(
                     Icons.Filled.Delete,
                     contentDescription = "Hapus",
                     tint = Color.White,
-                    modifier = Modifier.padding(end = 16.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
 
+        // Gray card that slides to reveal red background
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -724,18 +1186,32 @@ private fun CartItemRow(
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            if (offsetX < deleteThreshold) {
-                                viewModel.removeFromCart(cartItem.product.id)
+                            if (offsetX < -swipeThreshold) {
+                                offsetX = -swipeOffset
+                                isSwiped = true
+                            } else {
+                                offsetX = 0f
+                                isSwiped = false
                             }
-                            offsetX = 0f
                         },
                         onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(-150f, 0f)
+                            offsetX = (offsetX + dragAmount).coerceIn(-swipeOffset - 20f, 0f)
                         }
                     )
                 }
-                .clickable { viewModel.showQuantityDialog(cartItem) },
-            shape = RoundedCornerShape(8.dp)
+                .clickable {
+                    if (isSwiped) {
+                        offsetX = 0f
+                        isSwiped = false
+                    } else {
+                        viewModel.showQuantityDialog(cartItem)
+                    }
+                },
+            shape = RoundedCornerShape(8.dp),
+            elevation = CardDefaults.cardElevation(2.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFF5F5F5)
+            )
         ) {
             Row(
                 modifier = Modifier
@@ -895,7 +1371,7 @@ private fun SaveTicketDialog(
         },
         confirmButton = {
             Button(onClick = { if (tableName.isNotBlank()) onSave(tableName.trim()) }, enabled = tableName.isNotBlank()) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } }
@@ -1051,7 +1527,7 @@ private fun QuantityEditDialog(
 
                 // Delete button
                 OutlinedButton(
-                    onClick = { onDelete(cartItem.product.id) },
+                    onClick = { onDelete(cartItem.entryId) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
@@ -1065,9 +1541,9 @@ private fun QuantityEditDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onUpdateQuantity(cartItem.product.id, quantity) }
+                onClick = { onUpdateQuantity(cartItem.entryId, quantity) }
             ) {
-                Text("Simpan")
+                Text("Save")
             }
         },
         dismissButton = {

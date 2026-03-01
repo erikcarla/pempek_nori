@@ -18,7 +18,7 @@ import com.lokalpos.app.data.entity.*
         Transaction::class,
         TransactionItem::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

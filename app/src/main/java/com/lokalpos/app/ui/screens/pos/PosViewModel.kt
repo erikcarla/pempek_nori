@@ -12,7 +12,8 @@ import kotlinx.coroutines.launch
 data class CartItem(
     val product: Product,
     val quantity: Int = 1,
-    val notes: String = ""
+    val notes: String = "",
+    val entryId: Long = System.currentTimeMillis() + (Math.random() * 1000).toLong()
 ) {
     val subtotal: Double get() = product.price * quantity
 }
@@ -26,7 +27,8 @@ data class OpenTicket(
 data class SerializableCartItem(
     val productId: Long,
     val quantity: Int,
-    val notes: String
+    val notes: String,
+    val entryId: Long = System.currentTimeMillis()
 )
 
 data class PosUiState(
@@ -94,41 +96,48 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val transactionRepo = app.transactionRepository
     val settings = app.settingsManager
     private val printer = EpsonPrinter(application)
+    private val gson = com.google.gson.Gson()
+    private var ticketsLoaded = false
 
     private val _uiState = MutableStateFlow(PosUiState())
     val uiState: StateFlow<PosUiState> = _uiState.asStateFlow()
 
     init {
         loadData()
-        loadPersistedTickets()
     }
 
-    private fun loadPersistedTickets() {
-        viewModelScope.launch {
-            val savedTicketsJson = settings.loadTickets()
-            val tickets = mutableMapOf<String, OpenTicket>()
-            savedTicketsJson.forEach { (name, json) ->
-                try {
-                    val cartItems = com.google.gson.Gson().fromJson(json, Array<SerializableCartItem>::class.java)
-                    // We need to resolve products, but if product doesn't exist, skip
-                    val cart = cartItems.mapNotNull { item ->
-                        val product = _uiState.value.products.find { it.id == item.productId }
-                        product?.let { CartItem(it, item.quantity, item.notes) }
-                    }
-                    if (cart.isNotEmpty()) {
-                        tickets[name] = OpenTicket(name, cart)
-                    }
-                } catch (_: Exception) {}
+    private fun loadPersistedTickets(products: List<Product>) {
+        if (ticketsLoaded) return
+        ticketsLoaded = true
+
+        val savedTicketsJson = settings.loadTickets()
+        if (savedTicketsJson.isEmpty()) return
+
+        val tickets = mutableMapOf<String, OpenTicket>()
+        savedTicketsJson.forEach { (name, json) ->
+            try {
+                val cartItems = gson.fromJson(json, Array<SerializableCartItem>::class.java)
+                val cart = cartItems.mapNotNull { item ->
+                    val product = products.find { it.id == item.productId }
+                    product?.let { CartItem(it, item.quantity, item.notes, item.entryId) }
+                }
+                if (cart.isNotEmpty()) {
+                    tickets[name] = OpenTicket(name, cart)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PosViewModel", "Error loading ticket: $name", e)
             }
-            _uiState.update { it.copy(openTickets = tickets, paymentMethod = settings.defaultPaymentMethod) }
+        }
+        if (tickets.isNotEmpty()) {
+            _uiState.update { it.copy(openTickets = tickets) }
         }
     }
 
     private fun persistTickets() {
         val ticketsJson = mutableMapOf<String, String>()
         _uiState.value.openTickets.forEach { (name, ticket) ->
-            val items = ticket.cart.map { SerializableCartItem(it.product.id, it.quantity, it.notes) }
-            ticketsJson[name] = com.google.gson.Gson().toJson(items)
+            val items = ticket.cart.map { SerializableCartItem(it.product.id, it.quantity, it.notes, it.entryId) }
+            ticketsJson[name] = gson.toJson(items)
         }
         settings.saveTickets(ticketsJson)
     }
@@ -142,8 +151,11 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             productRepo.getAllProducts().collect { products ->
                 _uiState.update { it.copy(products = products) }
+                // Load persisted tickets after products are available
+                loadPersistedTickets(products)
             }
         }
+        _uiState.update { it.copy(paymentMethod = settings.defaultPaymentMethod) }
         refreshTaxSettings()
     }
 
@@ -188,35 +200,37 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addToCart(product: Product) {
         _uiState.update { state ->
-            val existingIndex = state.cart.indexOfFirst { it.product.id == product.id }
-            val newCart = if (existingIndex >= 0) {
+            val lastItem = state.cart.lastOrNull()
+            val newCart = if (lastItem != null && lastItem.product.id == product.id) {
+                // Only merge if the LAST item is the same product
                 state.cart.toMutableList().apply {
-                    val existing = this[existingIndex]
-                    this[existingIndex] = existing.copy(quantity = existing.quantity + 1)
+                    val lastIndex = this.lastIndex
+                    this[lastIndex] = lastItem.copy(quantity = lastItem.quantity + 1)
                 }
             } else {
+                // Add as new entry
                 state.cart + CartItem(product)
             }
             state.copy(cart = newCart)
         }
     }
 
-    fun updateCartQuantity(productId: Long, quantity: Int) {
+    fun updateCartQuantity(entryId: Long, quantity: Int) {
         _uiState.update { state ->
             if (quantity <= 0) {
-                state.copy(cart = state.cart.filter { it.product.id != productId })
+                state.copy(cart = state.cart.filter { it.entryId != entryId })
             } else {
                 val newCart = state.cart.map {
-                    if (it.product.id == productId) it.copy(quantity = quantity) else it
+                    if (it.entryId == entryId) it.copy(quantity = quantity) else it
                 }
                 state.copy(cart = newCart)
             }
         }
     }
 
-    fun removeFromCart(productId: Long) {
+    fun removeFromCart(entryId: Long) {
         _uiState.update { state ->
-            state.copy(cart = state.cart.filter { it.product.id != productId })
+            state.copy(cart = state.cart.filter { it.entryId != entryId })
         }
     }
 
@@ -252,10 +266,14 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleCheckout() {
         _uiState.update { state ->
             val entering = !state.showCheckout
-            if (entering && state.paymentMethod == "Tunai") {
+            if (entering) {
+                val paymentMethods = settings.getPaymentMethodsList()
+                val defaultMethod = paymentMethods.firstOrNull() ?: "QRIS BNI"
+                val formatted = "%,d".format(state.total.toLong()).replace(",", ".")
                 state.copy(
                     showCheckout = true,
-                    amountPaid = "%,.0f".format(state.total).replace(",", "")
+                    paymentMethod = defaultMethod,
+                    amountPaid = if (defaultMethod == "Tunai") formatted else ""
                 )
             } else {
                 state.copy(showCheckout = !state.showCheckout)
@@ -303,7 +321,15 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     changeAmount = if (paidAmount > totalWithTax) paidAmount - totalWithTax else 0.0
                 )
 
-                val items = state.cart.map { cartItem ->
+                // Merge cart items by product for receipt/transaction
+                val mergedCartItems = state.cart
+                    .groupBy { it.product.id }
+                    .map { (_, items) ->
+                        val first = items.first()
+                        first.copy(quantity = items.sumOf { it.quantity })
+                    }
+
+                val items = mergedCartItems.map { cartItem ->
                     TransactionItem(
                         transactionId = 0,
                         productId = cartItem.product.id,
@@ -318,7 +344,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
                 val txId = transactionRepo.createTransaction(transaction, items)
 
-                for (cartItem in state.cart) {
+                // Use merged items for stock update
+                for (cartItem in mergedCartItems) {
                     if (cartItem.product.trackStock) {
                         productRepo.decreaseStock(cartItem.product.id, cartItem.quantity)
                     }
@@ -500,8 +527,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(showQuantityDialog = false, editingCartItem = null) }
     }
 
-    fun updateQuantityAndClose(productId: Long, quantity: Int) {
-        updateCartQuantity(productId, quantity)
+    fun updateQuantityAndClose(entryId: Long, quantity: Int) {
+        updateCartQuantity(entryId, quantity)
         hideQuantityDialog()
     }
 }
