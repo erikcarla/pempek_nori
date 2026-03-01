@@ -597,6 +597,8 @@ private fun TabletCheckoutPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -621,7 +623,7 @@ private fun TabletCheckoutPanel(
         // Payment methods - 2 columns: 5% | 43.75% | 2.5% | 43.75% | 5%
         val paymentMethods = settings.getPaymentMethodsList()
         Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             paymentMethods.chunked(2).forEach { rowMethods ->
@@ -677,7 +679,7 @@ private fun TabletCheckoutPanel(
             CashPaymentInput(state, settings, viewModel)
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(24.dp))
 
         Button(
             onClick = { viewModel.processPayment() },
@@ -1145,7 +1147,7 @@ private fun CartItemRow(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var isSwiped by remember { mutableStateOf(false) }
     val swipeThreshold = 40f
-    val swipeOffset = 130f
+    val swipeOffset = 100f
 
     Box(
         modifier = Modifier
@@ -1182,6 +1184,7 @@ private fun CartItemRow(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .offset { IntOffset(offsetX.roundToInt(), 0) }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
@@ -1207,7 +1210,7 @@ private fun CartItemRow(
                         viewModel.showQuantityDialog(cartItem)
                     }
                 },
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(0.dp),
             elevation = CardDefaults.cardElevation(2.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color(0xFFF5F5F5)

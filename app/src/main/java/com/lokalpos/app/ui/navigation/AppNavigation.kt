@@ -145,12 +145,15 @@ fun AppNavigation() {
                         label = { Text(screen.title) },
                         selected = currentRoute == screen.route,
                         onClick = {
-                            scope.launch { drawerState.close() }
-                            if (currentRoute != screen.route) {
-                                navController.navigate(screen.route) {
-                                    popUpTo(Screen.Pos.route) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+                            val shouldNavigate = currentRoute != screen.route
+                            scope.launch {
+                                drawerState.close()
+                                if (shouldNavigate) {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(Screen.Pos.route) { saveState = false }
+                                        launchSingleTop = true
+                                        restoreState = false
+                                    }
                                 }
                             }
                         },
@@ -165,11 +168,14 @@ fun AppNavigation() {
                     label = { Text("Kirim Laporan Harian") },
                     selected = false,
                     onClick = {
-                        scope.launch { drawerState.close() }
-                        if (app.settingsManager.emailReportEnabled) {
-                            showEmailReportDialog = true
-                        } else {
-                            Toast.makeText(context, "Fitur email laporan belum diaktifkan. Aktifkan di Pengaturan.", Toast.LENGTH_LONG).show()
+                        val emailEnabled = app.settingsManager.emailReportEnabled
+                        scope.launch {
+                            drawerState.close()
+                            if (emailEnabled) {
+                                showEmailReportDialog = true
+                            } else {
+                                Toast.makeText(context, "Fitur email laporan belum diaktifkan. Aktifkan di Pengaturan.", Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
