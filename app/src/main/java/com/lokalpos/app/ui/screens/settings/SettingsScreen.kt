@@ -52,6 +52,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     // Dialog states
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showEmailRecipientDialog by remember { mutableStateOf(false) }
+    var showDashboardDialog by remember { mutableStateOf(false) }
+    var dashboardUnlocked by remember { mutableStateOf(false) }
 
     fun save() {
         settings.storeName = storeName
@@ -105,6 +107,34 @@ fun SettingsScreen(onBack: () -> Unit) {
         )
     }
 
+    // Dashboard password dialog
+    if (showDashboardDialog && !dashboardUnlocked) {
+        PasswordInputDialog(
+            title = "Masukkan Password",
+            onConfirm = { password ->
+                if (settings.validatePassword(password)) {
+                    dashboardUnlocked = true
+                } else {
+                    Toast.makeText(context, "Password salah", Toast.LENGTH_SHORT).show()
+                    showDashboardDialog = false
+                }
+            },
+            onDismiss = { showDashboardDialog = false }
+        )
+    }
+
+    // Dashboard dialog
+    if (dashboardUnlocked) {
+        DashboardDialog(
+            app = app,
+            settings = settings,
+            onDismiss = {
+                dashboardUnlocked = false
+                showDashboardDialog = false
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -130,6 +160,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Dashboard button
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                onClick = { showDashboardDialog = true }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Dashboard, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Dashboard", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text("Lihat statistik penjualan", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                        }
+                    }
+                    Icon(Icons.Filled.Lock, null, tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                }
+            }
+
+            HorizontalDivider()
 
             SectionHeader("Tampilan", Icons.Filled.ViewModule)
             Row(
@@ -141,19 +197,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = displayMode == "grid",
-                        onClick = {
-                            displayMode = "grid"
-                            settings.displayMode = "grid"
-                        },
+                        onClick = { displayMode = "grid" },
                         label = { Text("Grid") },
                         leadingIcon = { Icon(Icons.Filled.GridView, null, Modifier.size(16.dp)) }
                     )
                     FilterChip(
                         selected = displayMode == "list",
-                        onClick = {
-                            displayMode = "list"
-                            settings.displayMode = "list"
-                        },
+                        onClick = { displayMode = "list" },
                         label = { Text("List") },
                         leadingIcon = { Icon(Icons.Filled.ViewList, null, Modifier.size(16.dp)) }
                     )

@@ -102,15 +102,8 @@ class SettingsManager(context: Context) {
         get() = prefs.getString("email_sender_password", "") ?: ""
         set(value) = prefs.edit().putString("email_sender_password", value).apply()
 
-    fun getPaymentMethodsList(): List<String> {
-        // Fixed order: QRIS BNI, BCA, Tunai, BNI, QRIS BCA, Transfer BCA, Transfer BNI
-        val defaultOrder = listOf("QRIS BNI", "BCA", "Tunai", "BNI", "QRIS BCA", "Transfer BCA", "Transfer BNI")
-        val saved = prefs.getStringSet("payment_methods", defaultOrder.toSet()) ?: defaultOrder.toSet()
-        return defaultOrder.filter { it in saved }
-    }
-
     var paymentMethods: Set<String>
-        get() = getPaymentMethodsList().toSet()
+        get() = prefs.getStringSet("payment_methods", setOf("Tunai", "QRIS BNI", "QRIS BCA", "BCA", "BNI", "Transfer BCA", "Transfer BNI")) ?: setOf("Tunai")
         set(value) = prefs.edit().putStringSet("payment_methods", value).apply()
 
     // Default payment method

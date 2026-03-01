@@ -1,12 +1,8 @@
 package com.lokalpos.app.ui.screens.products
 
 import android.app.Application
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -40,7 +36,6 @@ data class ProductEditState(
     val trackStock: Boolean = false,
     val inStock: String = "0",
     val lowStockAlert: String = "5",
-    val color: String? = null,
     val categories: List<Category> = emptyList(),
     val isNew: Boolean = true,
     val isSaving: Boolean = false,
@@ -77,7 +72,6 @@ class ProductEditViewModel(application: Application) : AndroidViewModel(applicat
                         trackStock = product.trackStock,
                         inStock = product.inStock.toString(),
                         lowStockAlert = product.lowStockAlert.toString(),
-                        color = product.color,
                         isNew = false
                     )
                 }
@@ -106,8 +100,7 @@ class ProductEditViewModel(application: Application) : AndroidViewModel(applicat
                 categoryId = s.categoryId,
                 trackStock = s.trackStock,
                 inStock = s.inStock.toIntOrNull() ?: 0,
-                lowStockAlert = s.lowStockAlert.toIntOrNull() ?: 5,
-                color = s.color
+                lowStockAlert = s.lowStockAlert.toIntOrNull() ?: 5
             )
 
             if (s.isNew) {
@@ -235,50 +228,6 @@ fun ProductEditScreen(
                             }
                         )
                     }
-                }
-            }
-
-            // Color picker
-            Text("Warna Produk", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val colors = listOf(
-                    null to "Default",
-                    "#F44336" to "Merah",
-                    "#E91E63" to "Pink",
-                    "#9C27B0" to "Ungu",
-                    "#3F51B5" to "Biru",
-                    "#03A9F4" to "Biru Muda",
-                    "#009688" to "Teal",
-                    "#4CAF50" to "Hijau",
-                    "#FF9800" to "Orange",
-                    "#795548" to "Coklat"
-                )
-                colors.forEach { (colorHex, _) ->
-                    val isSelected = state.color == colorHex
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(
-                                color = if (colorHex != null) {
-                                    androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(colorHex))
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                },
-                                shape = CircleShape
-                            )
-                            .then(
-                                if (isSelected) {
-                                    Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                } else {
-                                    Modifier.border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                                }
-                            )
-                            .clickable { viewModel.updateField { copy(color = colorHex) } }
-                    )
                 }
             }
 

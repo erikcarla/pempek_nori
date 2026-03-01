@@ -46,27 +46,13 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
-
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
       - name: List APK files
         run: |
-          echo "=== Debug APK files ==="
-          ls -lah app/build/outputs/apk/debug/ || echo "Debug directory not found"
-          echo ""
           echo "=== Release APK files ==="
           ls -lah app/build/outputs/apk/release/ || echo "Release directory not found"
-
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: LokalPOS-debug
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-          if-no-files-found: error
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
@@ -81,6 +67,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/debug/*.apk
             app/build/outputs/apk/release/*.apk
           generate_release_notes: true
