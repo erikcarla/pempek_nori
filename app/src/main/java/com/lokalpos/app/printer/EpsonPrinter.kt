@@ -219,12 +219,10 @@ class EpsonPrinter(private val context: Context) {
                 "Diskon (${transaction.discountPercent.toInt()}%)" else "Diskon"
             addLine(padLeftRight(discLabel, "-${formatNum(transaction.discountAmount)}", width))
         }
-
+        
         addDash()
         addBytes(ESC_BOLD_ON)
-        addBytes(ESC_DOUBLE_WIDTH)
-        addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width / 2))
-        addBytes(ESC_NORMAL_SIZE)
+        addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width))
         addBytes(ESC_BOLD_OFF)
 
         // PB1 (Tax) appears AFTER total
