@@ -34,6 +34,7 @@ class EpsonPrinter(private val context: Context) {
         private val ESC_ALIGN_RIGHT = byteArrayOf(0x1B, 0x61, 0x02)
         private val ESC_DOUBLE_WIDTH = byteArrayOf(0x1B, 0x21, 0x20)
         private val ESC_DOUBLE_HEIGHT = byteArrayOf(0x1B, 0x21, 0x10)
+        private val ESC_BOLD_DOUBLE_WIDTH = byteArrayOf(0x1B, 0x21, 0x28) // Bold (0x08) + Double Width (0x20)
         private val ESC_NORMAL_SIZE = byteArrayOf(0x1B, 0x21, 0x00)
         private val ESC_CUT_PAPER = byteArrayOf(0x1D, 0x56, 0x01)
         private val ESC_FEED_LINES = byteArrayOf(0x1B, 0x64, 0x05)
@@ -219,11 +220,12 @@ class EpsonPrinter(private val context: Context) {
                 "Diskon (${transaction.discountPercent.toInt()}%)" else "Diskon"
             addLine(padLeftRight(discLabel, "-${formatNum(transaction.discountAmount)}", width))
         }
-        
+
         addDash()
-        addBytes(ESC_BOLD_ON)
-        addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width))
-        addBytes(ESC_BOLD_OFF)
+        // TOTAL dengan bold + double width
+        addBytes(ESC_BOLD_DOUBLE_WIDTH)
+        addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width / 2))
+        addBytes(ESC_NORMAL_SIZE)
 
         // PB1 (Tax) appears AFTER total
         if (transaction.taxAmount > 0) {

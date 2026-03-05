@@ -65,7 +65,7 @@ fun SettingsScreen(onBack: () -> Unit) {
         settings.autoDeleteDays = autoDeleteDays.toIntOrNull() ?: 30
         settings.currencySymbol = currencySymbol
         settings.printerEnabled = printerEnabled
-        settings.receiptWidth = receiptWidth.toIntOrNull() ?: 33
+        settings.receiptWidth = receiptWidth.toIntOrNull() ?: 36
         settings.emailReportEnabled = emailReportEnabled
         settings.emailSenderAddress = emailSenderAddress
         settings.emailSenderPassword = emailSenderPassword
