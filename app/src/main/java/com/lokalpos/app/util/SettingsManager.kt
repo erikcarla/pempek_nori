@@ -83,7 +83,7 @@ class SettingsManager(context: Context) {
         set(value) = prefs.edit().putBoolean("printer_enabled", value).apply()
 
     var receiptWidth: Int
-        get() = prefs.getInt("receipt_width", 36)
+        get() = prefs.getInt("receipt_width", 40)
         set(value) = prefs.edit().putInt("receipt_width", value).apply()
 
     var emailReportEnabled: Boolean

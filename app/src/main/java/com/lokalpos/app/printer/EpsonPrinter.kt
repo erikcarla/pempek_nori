@@ -222,10 +222,10 @@ class EpsonPrinter(private val context: Context) {
         }
 
         addDash()
-        // TOTAL dengan bold + double width
-        addBytes(ESC_BOLD_DOUBLE_WIDTH)
-        addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width / 2))
-        addBytes(ESC_NORMAL_SIZE)
+        // TOTAL dengan bold saja (normal size)
+        addBytes(ESC_BOLD_ON)
+        addLine(padLeftRight("TOTAL", formatNum(transaction.totalAmount), width))
+        addBytes(ESC_BOLD_OFF)
 
         // PB1 (Tax) appears AFTER total
         if (transaction.taxAmount > 0) {
