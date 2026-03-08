@@ -231,7 +231,9 @@ class EpsonPrinter(private val context: Context) {
         if (transaction.taxAmount > 0) {
             val taxLabel = if (transaction.taxPercent > 0)
                 "PB1 (${transaction.taxPercent.toInt()}%)" else "PB1"
-            addLine(padLeftRight(taxLabel, formatNum(transaction.taxAmount), width))
+            // Bulatkan nilai PB1 agar tidak ada koma
+            val roundedTax = kotlin.math.round(transaction.taxAmount).toLong().toDouble()
+            addLine(padLeftRight(taxLabel, formatNum(roundedTax), width))
         }
 
         addLine(padLeftRight("Bayar (${transaction.paymentMethod})", formatNum(transaction.amountPaid), width))
